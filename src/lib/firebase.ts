@@ -26,7 +26,8 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
-  limit
+  limit,
+  setDoc // Added setDoc here
 } from 'firebase/firestore';
 
 import { mockUser as defaultUserSchema, mockBadges as staticBadgeDefinitions } from './mock-data';
@@ -386,3 +387,4 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
         return false;
     }
 };
+
