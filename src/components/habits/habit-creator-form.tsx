@@ -3,13 +3,14 @@
 
 import type { FC } from 'react';
 import React, { useState, FormEvent, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase';
+import { suggestHabitMicroTask } from '@/lib/firebase';
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
 import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react'; // Curated icons, removed Run
@@ -51,6 +52,7 @@ export const HabitCreatorForm: FC = () => {
   const [isFetchingSuggestion, setIsFetchingSuggestion] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter(); // Initialize router
 
   const [selectedIcon, setSelectedIcon] = useState<string>('ListChecks');
   const [selectedColor, setSelectedColor] = useState<string>('#29ABE2'); 
@@ -101,26 +103,37 @@ export const HabitCreatorForm: FC = () => {
     
     try {
       // Using mockHabits directly as per project setup for mock data persistence
-      mockHabits.push({ ...newHabitData, id: `habit${Date.now()}`, createdAt: new Date().toISOString(), progress: [], streak: 0, userId: 'user123' });
+      mockHabits.push({ 
+        ...newHabitData, 
+        id: `habit${Date.now()}`, 
+        createdAt: new Date().toISOString(), 
+        progress: [], 
+        streak: 0, 
+        userId: 'user123' // Assuming a mock user for now
+      });
 
       toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
       setGoal('');
       setDescription('');
       setAiSuggestion('');
       setAvailableTimes([]);
-      // Resetting form fields is good, redirecting is handled by Next.js Link/router if desired elsewhere
-      // For SPA-like feel after creation, often stay or go to list.
-      // If a redirect is desired after successful creation:
-      if (typeof window !== 'undefined') {
-        window.location.href = '/habits'; // Or use Next.js router if available and preferred
-      }
+      setFrequency('daily');
+      setCustomFrequency('');
+      setDifficulty('medium');
+      setSelectedIcon('ListChecks');
+      setSelectedColor('#29ABE2');
+      
+      // Refresh the current route to re-fetch data and re-render Server Components
+      router.refresh();
+      // Navigate to the habits list page
+      router.push('/habits');
 
     } catch (error: any) {
       toast({ title: 'Error Creating Habit', description: error.message, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast]);
+  }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast, router, availableTimes, difficulty]);
   
   const handleColorChange = useCallback((color: ColorResult) => {
     setSelectedColor(color.hex);
@@ -270,3 +283,4 @@ export const HabitCreatorForm: FC = () => {
     </form>
   );
 }
+
