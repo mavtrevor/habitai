@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, FormEvent } from 'react';
@@ -7,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithEmail, signUpWithEmail, signInWithGoogle } from '@/lib/firebase';
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { FirebaseError } from 'firebase/app';
+import { auth } from '@/lib/firebase/client'; // Import auth directly for currentUser checks
 
 interface AuthFormProps {
   initialMode?: 'login' | 'signup';
@@ -31,13 +33,28 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
     try {
       if (mode === 'login') {
         await signInWithEmail(email, password);
+        if (auth.currentUser && !auth.currentUser.emailVerified) {
+          toast({
+            title: 'Email Not Verified',
+            description: 'Please verify your email address before signing in. Check your inbox (and spam folder) for the verification link.',
+            variant: 'destructive',
+            duration: 10000,
+          });
+          await signOut(); // Sign them out
+          setIsLoading(false);
+          return; // Stop further processing
+        }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
         router.push('/dashboard');
-      } else {
+      } else { // signup mode
         await signUpWithEmail(name, email, password);
-        // Note: Firebase signUp doesn't take name directly. Need to update profile post-creation.
-        toast({ title: 'Signup Successful', description: 'Welcome to HabitAI!' });
-        router.push('/dashboard');
+        toast({
+          title: 'Signup Successful! Please Verify Your Email',
+          description: `A verification email has been sent to ${email}. Please check your inbox (and spam folder) and click the verification link before signing in.`,
+          duration: 10000, 
+        });
+        setMode('login'); 
+        setPassword(''); 
       }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
@@ -54,6 +71,8 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
           case 'auth/weak-password':
             errorMessage = 'Password should be at least 6 characters.';
             break;
+          // Firebase might return 'auth/user-disabled' or a similar error if email verification is enforced and not completed.
+          // However, the check `!auth.currentUser.emailVerified` after login attempt is a more general way to handle it.
           default:
             errorMessage = error.message;
         }
@@ -69,7 +88,8 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
   const handleOAuth = async (provider: 'google') => {
     setIsLoading(true);
     try {
-      if (provider === 'google') await signInWithGoogle();
+      await signInWithGoogle();
+      // Google sign-in users are typically considered verified by Google.
       toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
       router.push('/dashboard');
     } catch (error: any) {

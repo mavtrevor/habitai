@@ -1,11 +1,13 @@
 
 import { auth } from './firebase/client';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  GoogleAuthProvider, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
+  sendEmailVerification,
+  updateProfile, // Added for potential future use with displayName
   User
 } from 'firebase/auth';
 
@@ -19,21 +21,16 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Firebase Auth functions
 export const getCurrentUser = async (): Promise<UserProfile | null> => {
-  // This needs onAuthStateChanged for real-time updates.
-  // For now, it might return cached user or null.
-  await delay(50); // simulate slight delay
+  await delay(50); 
   const firebaseUser = auth?.currentUser;
   if (firebaseUser) {
-    // Map Firebase User to UserProfile. This is a simplified mapping.
-    // You might want to store additional profile info in Firestore.
     return {
       id: firebaseUser.uid,
       name: firebaseUser.displayName || 'User',
       email: firebaseUser.email || '',
-      avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl, // Fallback to mock for consistency for now
+      avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl, 
       createdAt: firebaseUser.metadata.creationTime || new Date().toISOString(),
-      // timezone and preferences would typically come from Firestore
-      timezone: mockUser.timezone, 
+      timezone: mockUser.timezone,
       preferences: mockUser.preferences
     };
   }
@@ -47,12 +44,20 @@ export const signInWithEmail = async (email: string, pass: string): Promise<User
 };
 
 export const signUpWithEmail = async (name: string, email: string, pass: string): Promise<User> => {
-  // Note: Firebase createUserWithEmailAndPassword doesn't directly take 'name'.
-  // You'd typically update the profile separately after creation.
   if (!auth) throw new Error("Firebase auth not initialized");
   const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-  // TODO: Update user profile with name using updateProfile(userCredential.user, { displayName: name })
-  return userCredential.user;
+  
+  // It's good practice to set the display name here if provided during sign up
+  if (name) {
+    await updateProfile(userCredential.user, { displayName: name });
+  }
+
+  await sendEmailVerification(userCredential.user);
+  
+  // Sign the user out immediately after sending verification, so they have to log in after verifying
+  await firebaseSignOut(auth); 
+
+  return userCredential.user; // Return the user object, though they are now signed out
 };
 
 export const signInWithGoogle = async (): Promise<User> => {
@@ -153,7 +158,6 @@ export const getUserBadges = async (userId: string): Promise<Badge[]> => {
 };
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  // This should fetch from Firestore in a real app
   await delay(300);
   const firebaseUser = auth?.currentUser;
   if (firebaseUser && firebaseUser.uid === userId) {
@@ -163,23 +167,20 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       email: firebaseUser.email || '',
       avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl,
       createdAt: firebaseUser.metadata.creationTime || new Date().toISOString(),
-      timezone: mockUser.timezone, 
+      timezone: mockUser.timezone,
       preferences: mockUser.preferences
     };
   }
-  if (userId === mockUser.id && !firebaseUser) return mockUser; // Fallback for mock cases if no firebaseUser
+  if (userId === mockUser.id && !firebaseUser) return mockUser; 
   return null;
 }
 
 export const updateUserProfile = async (userId: string, data: Partial<UserProfile>): Promise<UserProfile | null> => {
-  // This should update Firestore and Firebase Auth profile
   await delay(400);
   const firebaseUser = auth?.currentUser;
   if (firebaseUser && firebaseUser.uid === userId) {
-    // await updateProfile(firebaseUser, { displayName: data.name, photoURL: data.avatarUrl });
-    // Then update Firestore document for other fields like timezone, preferences
-    // For mock:
-    Object.assign(mockUser, data); // This is still mockUser, needs careful handling
+    // Example: await updateProfile(firebaseUser, { displayName: data.name, photoURL: data.avatarUrl });
+    Object.assign(mockUser, data); 
     return { ...mockUser, ...data, id: userId, email: firebaseUser.email || mockUser.email };
   }
   return null;
