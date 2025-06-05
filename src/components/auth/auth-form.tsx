@@ -45,6 +45,7 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
+          case 'auth/invalid-credential':
             errorMessage = 'Invalid email or password.';
             break;
           case 'auth/email-already-in-use':
@@ -72,7 +73,19 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
       toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
       router.push('/dashboard');
     } catch (error: any) {
-      toast({ title: 'OAuth Error', description: error.message, variant: 'destructive' });
+      let errorMessage = "An unexpected OAuth error occurred.";
+      if (error instanceof FirebaseError) {
+        if (error.code === 'auth/popup-closed-by-user') {
+          errorMessage = 'The sign-in pop-up was closed. This might be due to a pop-up blocker or if you closed it prematurely. Please try again and ensure pop-ups are allowed for this site.';
+        } else if (error.code === 'auth/popup-blocked') {
+          errorMessage = 'The sign-in pop-up was blocked by your browser. Please disable your pop-up blocker for this site and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      toast({ title: 'OAuth Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
