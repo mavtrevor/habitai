@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { WelcomeBanner } from '@/components/dashboard/welcome-banner';
-import { QuickActions } from '@/components/dashboard/quick-actions';
 import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 
 export default function DashboardPage() {
@@ -35,16 +34,11 @@ export default function DashboardPage() {
         setHabits([]);
         setBadges([]);
         setHabitsDataString("[]");
-        // Consider redirecting to /auth here if preferred
-        // import { useRouter } from 'next/navigation';
-        // const router = useRouter();
-        // router.push('/auth');
-        setIsLoading(false); // Ensure loading stops if user is not authenticated
+        setIsLoading(false); 
         return;
       }
       setUserId(currentUser.id);
 
-      // Fetch habits and badges in parallel
       const [fetchedHabits, fetchedBadges] = await Promise.all([
         getUserHabits(currentUser.id),
         getUserBadges(currentUser.id)
@@ -66,10 +60,7 @@ export default function DashboardPage() {
     fetchData();
   }, [fetchData]);
 
-  // Calculate weeklyProgress based on fetched habits
   const weeklyProgress = React.useMemo(() => {
-    // Placeholder: Calculate actual weekly progress based on habit.progress dates
-    // This logic might need to be more sophisticated based on actual progress data
     return [
       habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
       75,
@@ -90,7 +81,7 @@ export default function DashboardPage() {
     return (
       <div className="text-center py-10 text-destructive">
         <p>{error}</p>
-        {userId === null && ( // Only show sign-in if error is due to not being authenticated
+        {userId === null && ( 
              <Button asChild className="mt-4">
                <Link href="/auth">Sign In</Link>
             </Button>
@@ -99,7 +90,7 @@ export default function DashboardPage() {
     );
   }
   
-  if (!userId && !isLoading && !error) { // Should be caught by error state, but as a fallback
+  if (!userId && !isLoading && !error) { 
     return (
       <div className="text-center py-10">
         <p>Please sign in to view your dashboard.</p>
@@ -126,7 +117,6 @@ export default function DashboardPage() {
           <ProgressChart weeklyProgress={weeklyProgress} />
         </div>
         <div className="lg:col-span-2">
-          <QuickActions />
           <UpcomingTasks habits={habits} />
         </div>
       </div>
