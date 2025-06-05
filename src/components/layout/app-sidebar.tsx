@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -50,7 +51,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const { open, isMobile } = useSidebar();
+  const { open, isMobile, setOpenMobile } = useSidebar();
   const [hydrated, setHydrated] = React.useState(false);
 
   React.useEffect(() => {
@@ -60,11 +61,20 @@ export function AppSidebar() {
   const handleLogout = async () => {
     try {
       await signOut();
+      if (isMobile) {
+        setOpenMobile(false);
+      }
       router.push('/auth');
       toast({title: "Logged Out", description: "You have been successfully logged out."})
     } catch (error) {
       console.error('Logout failed:', error);
       toast({title: "Logout Failed", description: "Could not log you out. Please try again.", variant: "destructive"})
+    }
+  };
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
     }
   };
 
@@ -96,6 +106,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref legacyBehavior>
                 <SidebarMenuButton
+                  onClick={handleLinkClick}
                   asChild
                   isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
                   tooltip={item.label}
@@ -119,6 +130,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
                 <Link href={item.href} passHref legacyBehavior>
                 <SidebarMenuButton
+                    onClick={handleLinkClick}
                     asChild
                     isActive={pathname === item.href}
                     tooltip={item.label}
