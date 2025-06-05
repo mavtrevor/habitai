@@ -2,7 +2,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, FormEvent, useCallback } from 'react';
+import React, { useState, FormEvent, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,24 +12,29 @@ import { useToast } from '@/hooks/use-toast';
 import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase';
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
-import { Loader2, Wand2, Zap, PlusCircle } from 'lucide-react';
-import { Checkbox } from '../ui/checkbox';
-import { mockHabits } from '@/lib/mock-data';
-import * as LucideIcons from 'lucide-react';
+import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Run, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react'; // Curated icons
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import type { ColorResult } from 'react-color';
 import dynamic from 'next/dynamic';
+import type { LucideProps } from 'lucide-react';
+import { mockHabits } from '@/lib/mock-data';
 
-const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.TwitterPicker), { ssr: false });
 
-const habitIcons = Object.keys(LucideIcons).filter(key => /^[A-Z]/.test(key) && !key.includes("Lucide") && !key.includes("Icon"));
+const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.TwitterPicker), { 
+  ssr: false,
+  loading: () => <div className="h-[154px] w-[276px] animate-pulse rounded-md bg-muted" /> 
+});
 
-const IconPickerComponent: FC<{ name?: string } & LucideIcons.LucideProps> = React.memo(({ name, ...props }) => {
-  if (!name || !(name in LucideIcons)) {
-    return <LucideIcons.ListChecks {...props} />; 
-  }
-  const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
-  return <Icon {...props} />;
+// Curated list of icons and a map for dynamic rendering
+const curatedIcons: Record<string, React.FC<LucideProps>> = {
+  Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, ListChecks, Moon, Mountain, Music, Pencil, Plane, Run, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Zap
+};
+
+const habitIconNames = Object.keys(curatedIcons);
+
+const IconPickerComponent: FC<{ name?: string } & LucideProps> = React.memo(({ name, ...props }) => {
+  const IconComponent = name && curatedIcons[name] ? curatedIcons[name] : ListChecks; // Fallback to ListChecks
+  return <IconComponent {...props} />;
 });
 IconPickerComponent.displayName = 'IconPickerComponent';
 
@@ -95,7 +100,7 @@ export const HabitCreatorForm: FC = () => {
     };
     
     try {
-      console.log("New Habit:", { ...newHabitData, userId: 'user123' }); 
+      // Using mockHabits directly as per project setup for mock data persistence
       mockHabits.push({ ...newHabitData, id: `habit${Date.now()}`, createdAt: new Date().toISOString(), progress: [], streak: 0, userId: 'user123' });
 
       toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
@@ -103,8 +108,11 @@ export const HabitCreatorForm: FC = () => {
       setDescription('');
       setAiSuggestion('');
       setAvailableTimes([]);
+      // Resetting form fields is good, redirecting is handled by Next.js Link/router if desired elsewhere
+      // For SPA-like feel after creation, often stay or go to list.
+      // If a redirect is desired after successful creation:
       if (typeof window !== 'undefined') {
-        window.location.href = '/habits';
+        window.location.href = '/habits'; // Or use Next.js router if available and preferred
       }
 
     } catch (error: any) {
@@ -163,7 +171,7 @@ export const HabitCreatorForm: FC = () => {
                 <SelectValue placeholder="Select Icon" />
               </SelectTrigger>
               <SelectContent>
-                {habitIcons.slice(0,50).map(iconName => ( 
+                {habitIconNames.map(iconName => ( 
                   <SelectItem key={iconName} value={iconName}>
                     <div className="flex items-center gap-2">
                       <IconPickerComponent name={iconName} className="h-4 w-4" /> {iconName}
