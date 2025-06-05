@@ -61,13 +61,13 @@ export default function LandingPage() {
               <Link href="/auth?mode=signup">Get Started for Free</Link>
             </Button>
             <div className="mt-16 animate-slide-in-from-bottom [animation-delay:0.8s]">
-              <Image 
-                src="https://placehold.co/800x450.png" 
-                alt="HabitAI dashboard preview" 
-                width={800} 
+              <Image
+                src="/images/hero-ai-plant.png"
+                alt="HabitAI dashboard preview with an AI generated plant image"
+                width={800}
                 height={450}
                 className="rounded-lg shadow-2xl mx-auto border-4 border-primary/20"
-                data-ai-hint="AI plant"
+                priority
               />
             </div>
           </div>
