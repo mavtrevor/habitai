@@ -74,7 +74,9 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
           return;
         }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
-        router.push('/dashboard');
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 0);
       } else { // signup mode
         await signUpWithEmail(name, email, password); // This now signs user out and sends verification
         toast({
@@ -117,7 +119,9 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
     try {
       await signInWithGoogle();
       toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
-      router.push('/dashboard');
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 0);
     } catch (error: any) {
       let errorMessage = "An unexpected OAuth error occurred.";
       if (error instanceof FirebaseError) {
