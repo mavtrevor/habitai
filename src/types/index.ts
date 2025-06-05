@@ -38,12 +38,12 @@ export interface Badge {
 
 export interface Challenge {
   id: string; // Firestore document ID
+  creatorId: string; // Firebase Auth UID of the user who created the challenge
   title: string;
   description: string;
   participantIds: string[]; // userIds
   startDate: string; // ISO date string
   endDate: string; // ISO date string
-  // Leaderboard might be a subcollection or derived data
   leaderboardPreview?: Array<{ userId: string; score: number; userName: string; avatarUrl?: string }>;
   imageUrl?: string;
   dataAiHint?: string;

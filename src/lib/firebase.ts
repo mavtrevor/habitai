@@ -107,7 +107,7 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
 export const signInWithEmail = async (email: string, pass: string): Promise<FirebaseAuthUser> => {
   if (!auth) throw new Error("Firebase auth not initialized");
   const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-  await getUserProfile(userCredential.user.uid);
+  await getUserProfile(userCredential.user.uid); // Ensure profile exists or is created
   return userCredential.user;
 };
 
@@ -291,13 +291,32 @@ export const getChallenges = async (): Promise<Challenge[]> => {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Challenge));
 };
 
+export const addChallenge = async (challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
+  if (!firestore) throw new Error("Firestore not initialized");
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not authenticated for creating challenge");
+
+  const challengesFbCollection = collection(firestore, 'challenges');
+  const now = Timestamp.now();
+  const newChallengePayload = {
+    ...challengeData,
+    creatorId: user.uid,
+    participantIds: [user.uid], // Creator automatically participates
+    leaderboardPreview: [],
+    createdAt: now.toDate().toISOString(),
+  };
+  const docRef = await addDoc(challengesFbCollection, newChallengePayload);
+  return { id: docRef.id, ...newChallengePayload };
+};
+
+
 // --- Badges ---
 export const getUserBadges = async (userId: string): Promise<Badge[]> => {
   const userProfile = await getUserProfile(userId);
   if (!userProfile || !userProfile.earnedBadgeIds) return [];
 
   return staticBadgeDefinitions.filter(badgeDef => userProfile.earnedBadgeIds!.includes(badgeDef.id))
-    .map(badge => ({...badge, earnedAt: userProfile.createdAt }));
+    .map(badge => ({...badge, earnedAt: userProfile.createdAt })); // Note: earnedAt should be specific to badge, not user creation. This is a simplification.
 };
 
 export const awardBadge = async (userId: string, badgeId: string): Promise<void> => {
@@ -388,4 +407,3 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
         return false;
     }
 };
-
