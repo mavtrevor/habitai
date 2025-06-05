@@ -1,28 +1,31 @@
+
 import type { Badge as BadgeType } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Award } from 'lucide-react'; // Default icon
-import * as LucideIcons from 'lucide-react'; // Import all icons
+import { Card, CardContent } from '@/components/ui/card';
+import { Award } from 'lucide-react'; 
+import * as LucideIcons from 'lucide-react'; 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { mockBadges as allBadgeDefinitions } from '@/lib/mock-data'; // Static definitions
 
 interface BadgesListProps {
-  badges: BadgeType[];
+  badgesData: BadgeType[]; // These are the earned badges (already filtered)
 }
 
 const IconComponent = ({ name, ...props }: { name?: string } & LucideIcons.LucideProps) => {
   if (!name || !(name in LucideIcons)) {
-    return <Award {...props} />; // Default icon
+    return <Award {...props} />; 
   }
   const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
   return <Icon {...props} />;
 };
 
-export function BadgesList({ badges }: BadgesListProps) {
-  const earnedBadges = badges.filter(b => b.earnedAt);
-  const upcomingBadges = badges.filter(b => !b.earnedAt);
+export function BadgesList({ badgesData: earnedBadges }: BadgesListProps) {
+  
+  const upcomingBadges = allBadgeDefinitions.filter(
+    def => !earnedBadges.some(earned => earned.id === def.id)
+  );
 
-
-  if (badges.length === 0) {
-    return <p className="text-muted-foreground">No badges available yet. Keep striving!</p>;
+  if (allBadgeDefinitions.length === 0) {
+    return <p className="text-muted-foreground">No badges available in the system yet.</p>;
   }
 
   return (
@@ -38,10 +41,11 @@ export function BadgesList({ badges }: BadgesListProps) {
                             <Card className="text-center p-4 flex flex-col items-center justify-center aspect-square shadow-md hover:shadow-lg transition-shadow bg-card">
                                 <IconComponent name={badge.icon} className="h-10 w-10 text-yellow-500 mb-2" />
                                 <p className="text-xs font-medium truncate w-full">{badge.name}</p>
+                                {/* Assuming earnedAt might be part of badgeData if fetched from user's profile directly */}
                                 {badge.earnedAt && <p className="text-xs text-muted-foreground">{new Date(badge.earnedAt).toLocaleDateString()}</p>}
                             </Card>
                         </TooltipTrigger>
-                        <TooltipContent className="bg-popover text-popover-foreground p-2 rounded-md shadow-lg">
+                        <TooltipContent className="bg-popover text-popover-foreground p-2 rounded-md shadow-lg max-w-xs">
                             <p className="font-semibold">{badge.name}</p>
                             <p className="text-xs">{badge.description}</p>
                         </TooltipContent>
@@ -63,7 +67,7 @@ export function BadgesList({ badges }: BadgesListProps) {
                                 <p className="text-xs font-medium truncate w-full">{badge.name}</p>
                             </Card>
                         </TooltipTrigger>
-                        <TooltipContent className="bg-popover text-popover-foreground p-2 rounded-md shadow-lg">
+                        <TooltipContent className="bg-popover text-popover-foreground p-2 rounded-md shadow-lg max-w-xs">
                             <p className="font-semibold">{badge.name}</p>
                             <p className="text-xs">{badge.description}</p>
                             <p className="text-xs text-primary mt-1">Keep going to earn this badge!</p>

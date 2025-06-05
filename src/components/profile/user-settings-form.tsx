@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, FormEvent } from 'react';
+import React, { useState, FormEvent, useEffect } from 'react';
 import type { UserProfile } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,28 +10,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '../ui/checkbox';
 import { Loader2 } from 'lucide-react';
-// import { updateUserProfile } from '@/lib/firebase'; // Mocked
+import { updateUserProfile } from '@/lib/firebase'; // Use real Firebase function
+import { auth } from '@/lib/firebase/client'; // For current user ID
 
 interface UserSettingsFormProps {
-  user: UserProfile;
+  user: UserProfile; // Initial user data passed as prop
 }
 
 const timezones = [
-  "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Australia/Sydney"
-  // Add more common timezones
+  "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Australia/Sydney",
+  "America/Chicago", "Europe/Paris", "Asia/Dubai", "Pacific/Auckland"
+  // Add more common timezones or consider a library for a comprehensive list
 ];
 
-const goalCategories = ["Fitness", "Productivity", "Wellness", "Learning", "Finance", "Creativity"];
+const goalCategories = ["Fitness", "Productivity", "Wellness", "Learning", "Finance", "Creativity", "Mindfulness", "Social"];
 
-export function UserSettingsForm({ user }: UserSettingsFormProps) {
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [timezone, setTimezone] = useState(user.timezone || '');
-  const [preferredTimes, setPreferredTimes] = useState<string[]>(user.preferences?.preferredTimes || []);
-  const [selectedGoalCategories, setSelectedGoalCategories] = useState<string[]>(user.preferences?.goalCategories || []);
+export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
+  const [name, setName] = useState(initialUser.name);
+  const [email, setEmail] = useState(initialUser.email); // Display only, not editable here
+  const [timezone, setTimezone] = useState(initialUser.timezone || '');
+  const [preferredTimes, setPreferredTimes] = useState<string[]>(initialUser.preferences?.preferredTimes || []);
+  const [selectedGoalCategories, setSelectedGoalCategories] = useState<string[]>(initialUser.preferences?.goalCategories || []);
   
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Effect to update form if initialUser prop changes (e.g. parent re-fetches)
+  useEffect(() => {
+    setName(initialUser.name);
+    setEmail(initialUser.email);
+    setTimezone(initialUser.timezone || '');
+    setPreferredTimes(initialUser.preferences?.preferredTimes || []);
+    setSelectedGoalCategories(initialUser.preferences?.goalCategories || []);
+  }, [initialUser]);
+
 
   const handlePreferredTimeChange = (time: string) => {
     setPreferredTimes(prev => 
@@ -48,10 +61,15 @@ export function UserSettingsForm({ user }: UserSettingsFormProps) {
     event.preventDefault();
     setIsLoading(true);
 
+    const currentAuthUser = auth.currentUser;
+    if (!currentAuthUser || currentAuthUser.uid !== initialUser.id) {
+        toast({ title: 'Authentication Error', description: 'Could not verify user. Please re-login.', variant: 'destructive'});
+        setIsLoading(false);
+        return;
+    }
+
     const updatedProfileData: Partial<UserProfile> = {
       name,
-      // Email change might require verification, so handle carefully or disallow for mock
-      // email, 
       timezone,
       preferences: {
         preferredTimes,
@@ -60,13 +78,10 @@ export function UserSettingsForm({ user }: UserSettingsFormProps) {
     };
     
     try {
-      // await updateUserProfile(user.id, updatedProfileData);
-      // Mock update
-      console.log("Updated Profile:", updatedProfileData);
-      Object.assign(user, updatedProfileData); // Mutate mockUser directly for demo persistence
+      await updateUserProfile(initialUser.id, updatedProfileData);
       toast({ title: 'Profile Updated', description: 'Your settings have been saved.' });
     } catch (error: any) {
-      toast({ title: 'Update Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Update Error', description: error.message || "Could not update profile.", variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -77,26 +92,26 @@ export function UserSettingsForm({ user }: UserSettingsFormProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <Label htmlFor="name">Full Name</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1" />
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1" disabled={isLoading} />
         </div>
         <div>
           <Label htmlFor="email">Email Address</Label>
-          <Input id="email" type="email" value={email} disabled className="mt-1 bg-muted/50 cursor-not-allowed" title="Email cannot be changed in this demo." />
-           <p className="text-xs text-muted-foreground mt-1">Email change requires verification (not implemented in demo).</p>
+          <Input id="email" type="email" value={email} disabled className="mt-1 bg-muted/50 cursor-not-allowed" title="Email cannot be changed here." />
+           <p className="text-xs text-muted-foreground mt-1">Email is managed via your authentication provider.</p>
         </div>
       </div>
 
       <div>
         <Label htmlFor="timezone">Timezone</Label>
-        <Select value={timezone} onValueChange={setTimezone}>
+        <Select value={timezone} onValueChange={setTimezone} disabled={isLoading}>
           <SelectTrigger id="timezone" className="mt-1">
             <SelectValue placeholder="Select your timezone" />
           </SelectTrigger>
           <SelectContent>
             {timezones.map(tz => (
-              <SelectItem key={tz} value={tz}>{tz.replace('_', ' ')}</SelectItem>
+              <SelectItem key={tz} value={tz}>{tz.replace(/_/g, ' ')}</SelectItem>
             ))}
-             <SelectItem value="other">Other (Set Manually)</SelectItem>
+             <SelectItem value="other">Other (Not specified)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -110,6 +125,7 @@ export function UserSettingsForm({ user }: UserSettingsFormProps) {
                     id={`time-${time.toLowerCase()}`}
                     checked={preferredTimes.includes(time.toLowerCase())}
                     onCheckedChange={() => handlePreferredTimeChange(time.toLowerCase())}
+                    disabled={isLoading}
                 />
                 <Label htmlFor={`time-${time.toLowerCase()}`} className="text-sm font-normal cursor-pointer flex-1">{time}</Label>
             </div>
@@ -126,6 +142,7 @@ export function UserSettingsForm({ user }: UserSettingsFormProps) {
                         id={`category-${category.toLowerCase()}`}
                         checked={selectedGoalCategories.includes(category)}
                         onCheckedChange={() => handleGoalCategoryChange(category)}
+                        disabled={isLoading}
                     />
                     <Label htmlFor={`category-${category.toLowerCase()}`} className="text-sm font-normal cursor-pointer flex-1">{category}</Label>
                 </div>

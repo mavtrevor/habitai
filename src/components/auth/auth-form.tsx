@@ -9,23 +9,23 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, sendEmailVerification } from '@/lib/firebase';
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, sendEmailVerification } from '@/lib/firebase'; // These now handle profile creation
 import { useRouter } from 'next/navigation';
 import { FirebaseError } from 'firebase/app';
-import type { User } from 'firebase/auth';
+import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { ToastAction } from '@/components/ui/toast';
 
 interface AuthFormProps {
   initialMode?: 'login' | 'signup';
 }
 
-export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
+export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }) => {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState(''); // For signup
   const [isLoading, setIsLoading] = useState(false);
-  const [unverifiedUserForResend, setUnverifiedUserForResend] = useState<User | null>(null);
+  const [unverifiedUserForResend, setUnverifiedUserForResend] = useState<FirebaseAuthUser | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -60,11 +60,11 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
             title: 'Email Not Verified',
             description: 'Please verify your email address before signing in. Check your inbox (and spam folder) for the verification link.',
             variant: 'destructive',
-            duration: 10000,
+            duration: 10000, // Keep toast longer for action
             action: (
               <ToastAction
                 altText="Resend verification email"
-                onClick={handleResendVerificationEmail}
+                onClick={handleResendVerificationEmail} // This is already memoized
               >
                 Resend Email
               </ToastAction>
@@ -75,18 +75,20 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
           return;
         }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
-        setTimeout(() => {
+        setTimeout(() => { // setTimeout ensures state updates complete before navigation
           router.push('/dashboard');
         }, 0);
       } else { 
+        // signUpWithEmail now handles profile creation in Firestore and email verification
         await signUpWithEmail(name, email, password); 
         toast({
           title: 'Signup Successful! Please Verify Your Email',
           description: `A verification email has been sent to ${email}. Please check your inbox (and spam folder) and click the verification link before signing in.`,
           duration: 10000,
         });
-        setMode('login');
-        setPassword('');
+        setMode('login'); // Switch to login mode
+        setPassword(''); // Clear password for security
+        // Email field can remain for user convenience if they want to try logging in after verification
       }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
@@ -94,7 +96,7 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
-          case 'auth/invalid-credential':
+          case 'auth/invalid-credential': // Catches various invalid credential issues
             errorMessage = 'Invalid email or password.';
             break;
           case 'auth/email-already-in-use':
@@ -104,10 +106,10 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
             errorMessage = 'Password should be at least 6 characters.';
             break;
           default:
-            errorMessage = error.message;
+            errorMessage = error.message; // Default Firebase error message
         }
       } else if (error.message) {
-        errorMessage = error.message;
+        errorMessage = error.message; // Other types of errors
       }
       toast({ title: 'Authentication Error', description: errorMessage, variant: 'destructive' });
     } finally {
@@ -118,16 +120,17 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
   const handleOAuth = useCallback(async (provider: 'google') => {
     setIsLoading(true);
     try {
+      // signInWithGoogle now handles profile creation in Firestore
       await signInWithGoogle();
-      toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
+      toast({ title: 'Login Successful', description: `Welcome!` });
       setTimeout(() => {
-        router.push('/dashboard');
-      }, 0);
+          router.push('/dashboard');
+        }, 0);
     } catch (error: any) {
       let errorMessage = "An unexpected OAuth error occurred.";
       if (error instanceof FirebaseError) {
-        if (error.code === 'auth/popup-closed-by-user') {
-          errorMessage = 'The sign-in pop-up was closed. This might be due to a pop-up blocker or if you closed it prematurely. Please try again and ensure pop-ups are allowed for this site.';
+        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+          errorMessage = 'The sign-in pop-up was closed. Please try again.';
         } else if (error.code === 'auth/popup-blocked') {
           errorMessage = 'The sign-in pop-up was blocked by your browser. Please disable your pop-up blocker for this site and try again.';
         } else {
@@ -149,6 +152,7 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
         <Button variant="outline" onClick={() => handleOAuth('google')} disabled={isLoading} className="w-full">
           <Chrome className="mr-2 h-4 w-4" /> Google
         </Button>
+        {/* Add Apple Sign-In button here if implemented */}
       </div>
 
       <div className="relative">
@@ -205,4 +209,5 @@ export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
       </form>
     </div>
   );
-}
+});
+AuthForm.displayName = 'AuthForm';

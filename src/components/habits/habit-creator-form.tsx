@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { suggestHabitMicroTask, addHabit as firebaseAddHabit, updateHabit as firebaseUpdateHabit } from '@/lib/firebase';
+import { suggestHabitMicroTask, addHabit, updateHabit } from '@/lib/firebase'; // Use real Firebase functions
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
 import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Edit3 } from 'lucide-react';
@@ -40,17 +40,17 @@ interface HabitCreatorFormProps {
   mode?: 'create' | 'edit';
 }
 
-export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode = 'create' }) => {
+export const HabitCreatorForm: FC<HabitCreatorFormProps> = React.memo(({ habitToEdit, mode = 'create' }) => {
   const [goal, setGoal] = useState('');
   const [description, setDescription] = useState('');
-  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [difficulty, setDifficulty] = useState('medium');
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]); // Still used for AI suggestion, not directly stored on Habit model yet
+  const [difficulty, setDifficulty] = useState('medium'); // Still used for AI suggestion
   const [frequency, setFrequency] = useState('daily');
   const [customFrequency, setCustomFrequency] = useState('');
   
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [isFetchingSuggestion, setIsFetchingSuggestion] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -61,17 +61,21 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
     if (mode === 'edit' && habitToEdit) {
       setGoal(habitToEdit.title);
       setDescription(habitToEdit.description || '');
-      setFrequency(habitToEdit.frequency); // Handle custom frequency if needed
-      // Assuming frequency might be custom, you might need to parse it or have a specific field
-      if (!['daily', 'weekly', 'weekdays', 'weekends'].includes(habitToEdit.frequency)) {
+      
+      const standardFrequencies = ['daily', 'weekly', 'weekdays', 'weekends'];
+      if (standardFrequencies.includes(habitToEdit.frequency)) {
+        setFrequency(habitToEdit.frequency);
+        setCustomFrequency('');
+      } else {
         setFrequency('custom');
         setCustomFrequency(habitToEdit.frequency);
       }
+      
       setAiSuggestion(habitToEdit.aiSuggestedTask || '');
       setSelectedIcon(habitToEdit.icon || 'ListChecks');
       setSelectedColor(habitToEdit.color || '#29ABE2');
-      // Note: availableTimes and difficulty are not part of Habit type,
-      // so cannot prefill them from habitToEdit directly unless added to type
+      // availableTimes and difficulty are not part of Habit type, so they aren't prefilled
+      // but they could be if added to the Habit type and stored
     }
   }, [mode, habitToEdit]);
 
@@ -95,10 +99,10 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
         times: availableTimes, 
         preferences: { difficulty } 
       };
-      const result = await suggestHabitMicroTask(input);
+      const result = await suggestHabitMicroTask(input); // Calls actual Genkit flow via firebase.ts
       setAiSuggestion(result.microTaskSuggestion || 'AI could not generate a suggestion for this input.');
-    } catch (error) {
-      toast({ title: 'AI Suggestion Error', description: 'Could not fetch AI suggestion.', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'AI Suggestion Error', description: error.message || 'Could not fetch AI suggestion.', variant: 'destructive' });
     } finally {
       setIsFetchingSuggestion(false);
     }
@@ -106,14 +110,14 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
 
   const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const finalFrequency = frequency === 'custom' ? customFrequency : frequency;
 
     try {
       if (mode === 'edit' && habitToEdit) {
         const updatedHabitData: Habit = {
-          ...habitToEdit,
+          ...habitToEdit, // Spread existing habit to keep progress, streak, userId, createdAt etc.
           title: goal,
           description,
           frequency: finalFrequency,
@@ -121,10 +125,10 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           icon: selectedIcon,
           color: selectedColor,
         };
-        await firebaseUpdateHabit(updatedHabitData);
+        await updateHabit(updatedHabitData); // This now calls Firestore update
         toast({ title: 'Habit Updated!', description: `${goal} has been updated.` });
       } else {
-        const newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'> = {
+        const newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId' | 'lastUpdatedAt'> = {
           title: goal,
           description,
           frequency: finalFrequency,
@@ -132,11 +136,10 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           icon: selectedIcon,
           color: selectedColor,
         };
-        await firebaseAddHabit(newHabitData);
+        await addHabit(newHabitData); // This now calls Firestore add
         toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
       }
       
-      // Reset form only if in create mode or if desired after edit
       if (mode === 'create') {
         setGoal('');
         setDescription('');
@@ -149,12 +152,12 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
         setSelectedColor('#29ABE2');
       }
       
-      router.push('/habits');
+      router.push('/habits'); // Navigate to habits list
 
     } catch (error: any) {
       toast({ title: `Error ${mode === 'edit' ? 'Updating' : 'Creating'} Habit`, description: error.message, variant: 'destructive' });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast, router, availableTimes, difficulty, mode, habitToEdit]);
   
@@ -173,6 +176,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           placeholder="e.g., Exercise daily, Read more books"
           required
           className="mt-1 text-base"
+          disabled={isSubmitting}
         />
          <p className="text-xs text-muted-foreground mt-1">What positive change do you want to make?</p>
       </div>
@@ -185,6 +189,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g., Go for a 30-minute run or do a home workout session."
           className="mt-1"
+          disabled={isSubmitting}
         />
       </div>
 
@@ -194,7 +199,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           <div className="flex items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-16 h-10 flex items-center justify-center">
+                <Button variant="outline" className="w-16 h-10 flex items-center justify-center" disabled={isSubmitting}>
                   <IconPickerComponent name={selectedIcon} style={{ color: selectedColor }} className="h-5 w-5" />
                 </Button>
               </PopoverTrigger>
@@ -202,7 +207,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
                  {typeof window !== 'undefined' && TwitterPicker && <TwitterPicker color={selectedColor} onChangeComplete={handleColorChange} triangle="hide" />}
               </PopoverContent>
             </Popover>
-            <Select value={selectedIcon} onValueChange={setSelectedIcon}>
+            <Select value={selectedIcon} onValueChange={setSelectedIcon} disabled={isSubmitting}>
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Select Icon" />
               </SelectTrigger>
@@ -221,7 +226,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
 
         <div>
           <Label htmlFor="frequency" className="text-base">Frequency</Label>
-          <Select value={frequency} onValueChange={setFrequency}>
+          <Select value={frequency} onValueChange={setFrequency} disabled={isSubmitting}>
             <SelectTrigger id="frequency" className="mt-1">
               <SelectValue placeholder="Select frequency" />
             </SelectTrigger>
@@ -240,6 +245,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
               onChange={(e) => setCustomFrequency(e.target.value)}
               placeholder="e.g., 3 times a week, Every Mon, Wed, Fri"
               className="mt-2"
+              disabled={isSubmitting}
             />
           )}
         </div>
@@ -247,7 +253,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
 
 
       <div>
-        <Label className="text-base">Available Times (Optional)</Label>
+        <Label className="text-base">Available Times (Optional for AI)</Label>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {['Morning', 'Afternoon', 'Evening', 'Anytime'].map(time => (
             <Button 
@@ -256,6 +262,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
               variant={availableTimes.includes(time.toLowerCase()) ? "default" : "outline"}
               onClick={() => handleTimeChange(time.toLowerCase())}
               className="w-full"
+              disabled={isSubmitting || isFetchingSuggestion}
             >
               {time}
             </Button>
@@ -264,8 +271,8 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
       </div>
 
       <div>
-        <Label htmlFor="difficulty" className="text-base">Preferred Task Difficulty (Optional)</Label>
-        <Select value={difficulty} onValueChange={setDifficulty}>
+        <Label htmlFor="difficulty" className="text-base">Preferred Task Difficulty (Optional for AI)</Label>
+        <Select value={difficulty} onValueChange={setDifficulty} disabled={isSubmitting || isFetchingSuggestion}>
           <SelectTrigger id="difficulty" className="mt-1">
             <SelectValue placeholder="Select difficulty" />
           </SelectTrigger>
@@ -282,7 +289,7 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
           <Label className="text-base font-medium text-accent flex items-center">
             <Wand2 className="h-5 w-5 mr-2" /> AI Micro-Task Suggestion
           </Label>
-          <Button type="button" variant="outline" size="sm" onClick={fetchAiSuggestion} disabled={isFetchingSuggestion || !goal} className="text-accent border-accent hover:bg-accent/10">
+          <Button type="button" variant="outline" size="sm" onClick={fetchAiSuggestion} disabled={isFetchingSuggestion || !goal || isSubmitting} className="text-accent border-accent hover:bg-accent/10">
             {isFetchingSuggestion ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
             Suggest Task
           </Button>
@@ -299,18 +306,17 @@ export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode 
       </div>
 
 
-      <Button type="submit" className="w-full text-lg py-3" disabled={isLoading || !goal} size="lg">
-        {isLoading ? (
+      <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting || !goal} size="lg">
+        {isSubmitting ? (
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
         ) : mode === 'edit' ? (
           <Edit3 className="mr-2 h-5 w-5" />
         ) : (
           <PlusCircle className="mr-2 h-5 w-5" />
         )}
-        {mode === 'edit' ? 'Save Changes' : 'Create Habit'}
+        {isSubmitting ? (mode === 'edit' ? 'Saving...' : 'Creating...') : (mode === 'edit' ? 'Save Changes' : 'Create Habit')}
       </Button>
     </form>
   );
-}
-
-    
+});
+HabitCreatorForm.displayName = 'HabitCreatorForm';

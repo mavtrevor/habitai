@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { HabitCreatorForm } from '@/components/habits/habit-creator-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getHabitById } from '@/lib/firebase';
+import { getHabitById, getCurrentUser } from '@/lib/firebase';
 import type { Habit } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Edit3 } from 'lucide-react';
@@ -20,35 +20,45 @@ export default function EditHabitPage() {
   const [habit, setHabit] = useState<Habit | null | undefined>(undefined); // undefined for loading, null for not found
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (habitId) {
+    const fetchUserAndHabit = async () => {
       setIsLoading(true);
       setError(null);
-      getHabitById(habitId)
-        .then(fetchedHabit => {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        setError("User not authenticated. Please sign in.");
+        setIsLoading(false);
+        setHabit(null);
+        router.push('/auth'); // Redirect if not authenticated
+        return;
+      }
+      setUserId(currentUser.id);
+
+      if (habitId) {
+        try {
+          const fetchedHabit = await getHabitById(currentUser.id, habitId);
           if (fetchedHabit) {
             setHabit(fetchedHabit);
           } else {
-            setHabit(null); // Habit not found
-            setError(`Habit with ID "${habitId}" not found.`);
+            setHabit(null);
+            setError(`Habit with ID "${habitId}" not found or you don't have permission to edit it.`);
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error("Failed to fetch habit for editing:", err);
           setError("Failed to load habit details. Please try again.");
           setHabit(null);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else {
-      // Handle case where habitId is not available or invalid - though route structure should ensure it
-      setError("Invalid habit ID.");
+        }
+      } else {
+        setError("Invalid habit ID.");
+        setHabit(null);
+      }
       setIsLoading(false);
-      setHabit(null);
-    }
-  }, [habitId]);
+    };
+
+    fetchUserAndHabit();
+  }, [habitId, router]);
 
   if (isLoading) {
     return (
@@ -103,11 +113,10 @@ export default function EditHabitPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Pass userId if your HabitCreatorForm's updateHabit needs it explicitly, otherwise ensure firebase.ts functions use auth.currentUser */}
           <HabitCreatorForm habitToEdit={habit} mode="edit" />
         </CardContent>
       </Card>
     </div>
   );
 }
-
-    

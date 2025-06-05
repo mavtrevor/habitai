@@ -7,40 +7,80 @@ import type { CommunityPost } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { ThumbsUp, MessageSquare, MoreHorizontal, Share2 } from 'lucide-react';
+import { ThumbsUp, MessageSquare, MoreHorizontal, Share2, Trash2, Flag } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-// import { likePost as mockLikePost } from '@/lib/firebase'; // Mocked
+import { likePost as firebaseLikePost, deleteDoc } from '@/lib/firebase'; // Assuming deleteDoc for posts will be added to firebase.ts
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { useToast } from '@/hooks/use-toast';
+// Placeholder for a real delete function
+// async function deletePostFromDb(postId: string): Promise<void> { console.warn(`deletePostFromDb(${postId}) not implemented`); }
 
 
 interface PostCardProps {
   post: CommunityPost;
   currentUserId: string;
+  onDeletePost?: (postId: string) => void; // Optional: to update parent list
 }
 
-const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId }) => {
+const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId, onDeletePost }) => {
   const [post, setPost] = useState(initialPost);
-  const [isLiked, setIsLiked] = useState(post.likes.includes(currentUserId));
-  const [likeCount, setLikeCount] = useState(post.likes.length);
+  const [isLikedByCurrentUser, setIsLikedByCurrentUser] = useState(initialPost.likes.includes(currentUserId));
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState(initialPost.likes.length);
+  const { toast } = useToast();
+
 
   const handleLike = useCallback(async () => {
-    // const updatedPost = await mockLikePost(post.id, currentUserId); // Mock
-    // if (updatedPost) {
-    //   setPost(updatedPost);
-    //   setIsLiked(updatedPost.likes.includes(currentUserId));
-    //   setLikeCount(updatedPost.likes.length);
-    // }
-    // Mock behavior:
-    setIsLiked(prevIsLiked => !prevIsLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-  }, [isLiked, currentUserId, post.id]); // Ensure stable references if mockLikePost was real and used these
+    const originalIsLiked = isLikedByCurrentUser;
+    const originalLikeCount = optimisticLikeCount;
+
+    // Optimistic update
+    setIsLikedByCurrentUser(prev => !prev);
+    setOptimisticLikeCount(prev => originalIsLiked ? prev - 1 : prev + 1);
+
+    try {
+      const updatedPost = await firebaseLikePost(post.id, currentUserId);
+      if (updatedPost) {
+        setPost(updatedPost); // Update with actual data from backend
+        setIsLikedByCurrentUser(updatedPost.likes.includes(currentUserId));
+        setOptimisticLikeCount(updatedPost.likes.length);
+      } else {
+        throw new Error("Failed to update like status.");
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
+      // Revert optimistic update on error
+      setIsLikedByCurrentUser(originalIsLiked);
+      setOptimisticLikeCount(originalLikeCount);
+      toast({title: "Error", description: "Could not update like.", variant: "destructive"});
+    }
+  }, [isLikedByCurrentUser, optimisticLikeCount, currentUserId, post.id, toast]);
+  
+  const handleDelete = async () => {
+    if (post.userId !== currentUserId) {
+        toast({title: "Unauthorized", description: "You can only delete your own posts.", variant: "destructive"});
+        return;
+    }
+    if (!window.confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
+        return;
+    }
+    try {
+        // await deletePostFromDb(post.id); // Replace with actual Firebase delete
+        // await deleteDoc(doc(firestore, 'posts', post.id)); // Example, implement in firebase.ts
+        toast({title: "Post Deleted", description: "Your post has been removed."});
+        if (onDeletePost) onDeletePost(post.id); // Notify parent to remove from list
+    } catch (error) {
+        console.error("Error deleting post:", error);
+        toast({title: "Error", description: "Could not delete post.", variant: "destructive"});
+    }
+  };
   
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
@@ -67,9 +107,19 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>View Post</DropdownMenuItem>
-              {post.userId === currentUserId && <DropdownMenuItem className="text-destructive">Delete Post</DropdownMenuItem>}
-              <DropdownMenuItem>Report Post</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => {/* TODO: View post details */}}>View Post Details</DropdownMenuItem>
+              {post.userId === currentUserId && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete Post
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => {/* TODO: Report post */}}>
+                <Flag className="mr-2 h-4 w-4" /> Report Post
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -89,7 +139,7 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
           </div>
         )}
         {post.habitId && (
-             <Link href={`/habits#${post.habitId}`}>
+             <Link href={`/habits#${post.habitId}`}> {/* Direct link to habit on habits page if ID is known and unique */}
                 <Button variant="link" className="px-0 h-auto text-xs mt-2 text-primary hover:underline">
                     Related Habit
                 </Button>
@@ -98,9 +148,9 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
       </CardContent>
       <CardFooter className="p-4 border-t flex justify-between items-center">
         <div className="flex space-x-4">
-          <Button variant="ghost" size="sm" onClick={handleLike} className={`flex items-center gap-1.5 text-muted-foreground hover:text-primary ${isLiked ? 'text-primary' : ''}`}>
-            <ThumbsUp className={`h-4 w-4 ${isLiked ? 'fill-primary' : ''}`} /> 
-            <span>{likeCount} {likeCount === 1 ? 'Like' : 'Likes'}</span>
+          <Button variant="ghost" size="sm" onClick={handleLike} className={`flex items-center gap-1.5 text-muted-foreground hover:text-primary ${isLikedByCurrentUser ? 'text-primary' : ''}`}>
+            <ThumbsUp className={`h-4 w-4 ${isLikedByCurrentUser ? 'fill-primary' : ''}`} /> 
+            <span>{optimisticLikeCount} {optimisticLikeCount === 1 ? 'Like' : 'Likes'}</span>
           </Button>
           <Button variant="ghost" size="sm" className="flex items-center gap-1.5 text-muted-foreground hover:text-primary">
             <MessageSquare className="h-4 w-4" /> 

@@ -1,7 +1,7 @@
 // src/lib/firebase/client.ts
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { Auth, getAuth } from 'firebase/auth';
-// import { Firestore, getFirestore } from 'firebase/firestore'; // Uncomment if you use Firestore
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { type Auth, getAuth } from 'firebase/auth';
+import { type Firestore, getFirestore } from 'firebase/firestore'; // Ensure Firestore is imported
 // import { Functions, getFunctions } from 'firebase/functions'; // Uncomment if you use Functions
 // import { FirebaseStorage, getStorage } from 'firebase/storage'; // Uncomment if you use Storage
 
@@ -17,23 +17,23 @@ const firebaseConfig = {
 
 let app: FirebaseApp;
 let auth: Auth;
-// let firestore: Firestore;
+let firestore: Firestore; // Declare firestore
 // let functions: Functions;
 // let storage: FirebaseStorage;
 
 if (typeof window !== 'undefined' && !getApps().length) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  // firestore = getFirestore(app);
+  firestore = getFirestore(app); // Initialize firestore
   // functions = getFunctions(app);
   // storage = getStorage(app);
 } else if (typeof window !== 'undefined') {
   app = getApp();
   auth = getAuth(app);
-  // firestore = getFirestore(app);
+  firestore = getFirestore(app); // Get firestore instance
   // functions = getFunctions(app);
   // storage = getStorage(app);
 }
 
 // @ts-ignore
-export { app, auth /*, firestore, functions, storage */ };
+export { app, auth, firestore /*, functions, storage */ };

@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import * as LucideIcons from 'lucide-react';
 
 interface BadgesOverviewProps {
-  badges: BadgeType[];
+  badges: BadgeType[]; // These are already filtered earned badges from the dashboard page
 }
 
 const IconComponent: FC<{ name?: string } & LucideIcons.LucideProps> = React.memo(({ name, ...props }) => {
@@ -24,7 +24,7 @@ IconComponent.displayName = 'IconComponent';
 
 
 const BadgesOverviewComponent: FC<BadgesOverviewProps> = ({ badges }) => {
-  const recentBadges = badges.slice(0, 3); // Show 3 most recent badges
+  const recentBadges = badges.slice(0, 3); // Show 3 most recent/earned badges
 
   return (
     <Card className="shadow-md">
@@ -45,6 +45,7 @@ const BadgesOverviewComponent: FC<BadgesOverviewProps> = ({ badges }) => {
                 <div>
                   <p className="text-sm font-medium text-foreground">{badge.name}</p>
                   <p className="text-xs text-muted-foreground">{badge.description}</p>
+                  {badge.earnedAt && <p className="text-xs text-muted-foreground/70">Earned: {new Date(badge.earnedAt).toLocaleDateString()}</p>}
                 </div>
               </div>
             ))}
@@ -55,6 +56,11 @@ const BadgesOverviewComponent: FC<BadgesOverviewProps> = ({ badges }) => {
             <Link href="/profile?tab=badges">View all {badges.length} badges</Link>
           </Button>
         )}
+         {badges.length > 0 && badges.length <=3 && (
+             <Button variant="link" asChild className="mt-2 p-0 h-auto text-primary">
+                <Link href="/profile?tab=badges">View Badges</Link>
+            </Button>
+         )}
       </CardContent>
     </Card>
   );

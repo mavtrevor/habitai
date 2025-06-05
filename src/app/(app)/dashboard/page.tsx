@@ -4,8 +4,7 @@ import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
 import { AIInsightsCard } from '@/components/dashboard/ai-insights-card';
 import { BadgesOverview } from '@/components/dashboard/badges-overview';
-import { mockBadges } from '@/lib/mock-data'; // mockBadges is still directly exported
-import { getUserHabits } from '@/lib/firebase'; // Import getUserHabits
+import { getUserHabits, getUserBadges, getCurrentUser } from '@/lib/firebase';
 import type { Habit, Badge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -14,28 +13,49 @@ import { WelcomeBanner } from '@/components/dashboard/welcome-banner';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 
-// Mock data fetching
+// Data fetching at the page level (Server Component)
 const getDashboardData = async () => {
-  // In a real app, fetch this data
-  const habits = await getUserHabits('user123'); // Use getUserHabits for mock user
+  const currentUser = await getCurrentUser(); // Needed for fetching user-specific data
+  if (!currentUser) {
+    return { habits: [], badges: [], userId: null, habitsDataString: "[]" };
+  }
+
+  const habits = await getUserHabits(currentUser.id);
+  const badges = await getUserBadges(currentUser.id); // Fetches earned badges
+  
   return {
     habits: habits,
-    badges: mockBadges.filter(b => b.earnedAt), // Only show earned badges
+    badges: badges,
+    userId: currentUser.id,
+    habitsDataString: JSON.stringify(habits.map(h => ({title: h.title, progress: h.progress.length, streak: h.streak}))) // Minimized data for AI
   };
 };
 
 export default async function DashboardPage() {
-  const { habits, badges } = await getDashboardData();
+  const { habits, badges, userId, habitsDataString } = await getDashboardData();
 
-  const habitProgressData = habits.map(habit => ({
-    name: habit.title,
-    // Simplified completion rate for the chart
-    completionRate: Math.round((habit.progress.filter(p => p.completed).length / (habit.progress.length || 1)) * 100),
-  }));
+  if (!userId) {
+    // Handle case where user is not authenticated, though AppLayout should ideally protect this route
+    // For now, redirect or show a message. This might be better handled in middleware or layout.
+    return (
+      <div className="text-center py-10">
+        <p>Please sign in to view your dashboard.</p>
+        <Button asChild className="mt-4">
+          <Link href="/auth">Sign In</Link>
+        </Button>
+      </div>
+    );
+  }
   
   // Example data for weekly progress chart (last 4 weeks)
-  // This should be calculated based on actual habit progress over time
-  const weeklyProgress = [60, 75, 70, 85];
+  // This should be calculated based on actual habit progress over time from Firestore
+  const weeklyProgress = [
+    // Placeholder: Calculate actual weekly progress based on habit.progress dates
+    habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
+    75, 
+    70, 
+    85
+  ];
 
 
   return (
@@ -44,8 +64,8 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <StreaksOverview habits={habits} />
-        <BadgesOverview badges={badges} />
-        <AIInsightsCard habitsData={JSON.stringify(habits)} />
+        <BadgesOverview badges={badges} /> {/* Pass fetched earned badges */}
+        <AIInsightsCard habitsData={habitsDataString} />
       </div>
       
       <div className="grid gap-6 lg:grid-cols-5">

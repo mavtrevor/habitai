@@ -1,10 +1,12 @@
 
 'use client'; 
 
+import React, { useState, useEffect, useCallback } from 'react';
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
-import { getUserHabits } from '@/lib/firebase'; // Use the "API" function
+import { getUserHabits, getCurrentUser } from '@/lib/firebase';
 import type { Habit } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -16,21 +18,38 @@ import {
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
-import { Input } from '@/components/ui/input';
-import React, { useState, useEffect, useCallback } from 'react';
 
 export default function HabitsListPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  // Add more states for filters as needed, e.g.,
+  const [userId, setUserId] = useState<string | null>(null);
+  // TODO: Implement filter states
   // const [filterStatus, setFilterStatus] = useState<string | null>(null); 
   // const [sortBy, setSortBy] = useState<string>('lastUpdated');
 
+  useEffect(() => {
+    const fetchUser = async () => {
+      const currentUser = await getCurrentUser();
+      if (currentUser) {
+        setUserId(currentUser.id);
+      } else {
+        // Handle user not logged in, e.g., redirect or show message
+        setIsLoading(false); 
+      }
+    };
+    fetchUser();
+  }, []);
+
   const loadHabits = useCallback(async () => {
+    if (!userId) {
+      setIsLoading(false);
+      setHabits([]);
+      return;
+    }
     setIsLoading(true);
     try {
-      let userHabits = await getUserHabits('user123'); // Fetch habits for mock user
+      let userHabits = await getUserHabits(userId);
 
       if (searchTerm) {
         userHabits = userHabits.filter(habit =>
@@ -39,23 +58,27 @@ export default function HabitsListPage() {
         );
       }
 
-      // Implement filtering and sorting logic here based on filterStatus and sortBy states
-      // For example:
-      // if (filterStatus === 'active') { ... }
-      // if (sortBy === 'A-Z') { userHabits.sort(...); }
+      // TODO: Implement filtering and sorting logic here
+      // Example:
+      // if (sortBy === 'lastUpdatedAt') {
+      //   userHabits.sort((a, b) => new Date(b.lastUpdatedAt || b.createdAt).getTime() - new Date(a.lastUpdatedAt || a.createdAt).getTime());
+      // }
+
 
       setHabits(userHabits);
     } catch (error) {
       console.error("Failed to load habits:", error);
-      setHabits([]); // Set to empty or show error message
+      setHabits([]);
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm /*, filterStatus, sortBy */]); // Add dependencies
+  }, [userId, searchTerm /*, filterStatus, sortBy */]);
 
   useEffect(() => {
-    loadHabits();
-  }, [loadHabits]); // Reload when loadHabits function reference changes (due to its dependencies)
+    if (userId) { // Only load habits if userId is available
+      loadHabits();
+    }
+  }, [loadHabits, userId]);
 
   if (isLoading) {
     return (
@@ -70,6 +93,17 @@ export default function HabitsListPage() {
       </div>
     );
   }
+  
+  if (!userId && !isLoading) {
+     return (
+      <div className="space-y-6 text-center">
+        <h1 className="text-3xl font-bold font-headline">My Habits</h1>
+        <p className="text-muted-foreground">Please sign in to manage your habits.</p>
+         <Button asChild><Link href="/auth">Sign In</Link></Button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-6">
@@ -94,7 +128,7 @@ export default function HabitsListPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {/* Example filter items - implement state and logic for these */}
+              {/* TODO: Implement filter items - state and logic */}
               <DropdownMenuCheckboxItem checked>Active</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>Completed Today</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>Archived</DropdownMenuCheckboxItem>
@@ -123,8 +157,10 @@ export default function HabitsListPage() {
       ) : (
         <div className="text-center py-12 bg-card rounded-lg shadow">
           <ListChecks className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-semibold mb-2">No Habits Yet</h3>
-          <p className="text-muted-foreground mb-4">Start building positive habits by creating your first one.</p>
+          <h3 className="text-xl font-semibold mb-2">No Habits Found</h3>
+          <p className="text-muted-foreground mb-4">
+            {searchTerm ? "No habits match your search." : "Start building positive habits by creating your first one."}
+          </p>
           <Button asChild>
             <Link href="/habits/create">Create Your First Habit</Link>
           </Button>

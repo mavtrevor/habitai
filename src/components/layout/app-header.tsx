@@ -1,15 +1,16 @@
+
 'use client';
 
-import { Bell, Search, Menu } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Bell, Search, Menu, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { UserNav } from '@/components/layout/user-nav';
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { AppSidebar } from './app-sidebar';
 import { useSidebar, SidebarTrigger } from '../ui/sidebar';
 import { Logo } from '../shared/logo';
 import { usePathname } from 'next/navigation';
-import { mockNotifications } from '@/lib/mock-data';
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, getCurrentUser } from '@/lib/firebase';
+import type { Notification as NotificationType } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,15 +18,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import Link from 'next/link';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { useEffect, useState } from 'react';
 
 const getPageTitle = (pathname: string): string => {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
   if (pathname.startsWith('/habits/create')) return 'Create New Habit';
+  if (pathname.startsWith('/habits/edit')) return 'Edit Habit';
   if (pathname.startsWith('/habits')) return 'My Habits';
   if (pathname.startsWith('/community')) return 'Community';
   if (pathname.startsWith('/challenges')) return 'Challenges';
@@ -37,15 +39,57 @@ const getPageTitle = (pathname: string): string => {
 
 
 export function AppHeader() {
-  const { isMobile, toggleSidebar } = useSidebar();
+  const { isMobile } = useSidebar();
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
-  const [notifications, setNotifications] = useState(mockNotifications);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n));
-  }
+  useEffect(() => {
+    const fetchUserAndNotifications = async () => {
+      const user = await getCurrentUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        setIsLoadingNotifications(true);
+        try {
+          const fetchedNotifications = await getNotifications(user.id);
+          setNotifications(fetchedNotifications);
+        } catch (error) {
+          console.error("Error fetching notifications:", error);
+        } finally {
+          setIsLoadingNotifications(false);
+        }
+      } else {
+        setIsLoadingNotifications(false); // No user, no notifications to load
+      }
+    };
+    fetchUserAndNotifications();
+  }, [pathname]); // Refetch if pathname changes, in case of SPA navigation keeping header mounted
+
+  const handleMarkAsRead = async (id: string) => {
+    if (!currentUserId) return;
+    setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n)); // Optimistic update
+    try {
+        await markNotificationAsRead(currentUserId, id);
+    } catch (error) {
+        console.error("Error marking notification as read:", error);
+        // Potentially revert optimistic update here or show toast
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!currentUserId || unreadCount === 0) return;
+    setNotifications(prev => prev.map(n => ({...n, read: true }))); // Optimistic update
+    try {
+        await markAllNotificationsAsRead(currentUserId);
+    } catch (error) {
+        console.error("Error marking all notifications as read:", error);
+        // Potentially revert or show toast
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-md px-4 md:px-6">
@@ -64,7 +108,7 @@ export function AppHeader() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search habits, posts..."
+            placeholder="Search..."
             className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px] rounded-full"
           />
         </form>
@@ -81,24 +125,48 @@ export function AppHeader() {
               <span className="sr-only">Toggle notifications</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-80 md:w-96">
+            <DropdownMenuLabel className="flex justify-between items-center">
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleMarkAllRead}>Mark all as read</Button>
+              )}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <ScrollArea className="h-[300px]">
-              {notifications.length === 0 && <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>}
-              {notifications.map((notif) => (
-                <DropdownMenuItem key={notif.id} onSelect={() => markAsRead(notif.id)} className={`flex flex-col items-start ${!notif.read ? 'font-semibold':''}`}>
-                  <Link href={notif.link || '#'} className="w-full">
-                    <p className="text-sm truncate">{notif.message}</p>
-                    <p className={`text-xs ${notif.read ? 'text-muted-foreground' : 'text-primary'}`}>{new Date(notif.createdAt).toLocaleTimeString()}</p>
-                  </Link>
-                </DropdownMenuItem>
-              ))}
+              {isLoadingNotifications ? (
+                <div className="flex justify-center items-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : notifications.length === 0 ? (
+                <DropdownMenuItem disabled className="text-center text-muted-foreground py-4">No new notifications</DropdownMenuItem>
+              ) : (
+                notifications.map((notif) => (
+                  <DropdownMenuItem 
+                    key={notif.id} 
+                    onSelect={() => { if (!notif.read) handleMarkAsRead(notif.id); }} 
+                    className={`flex flex-col items-start p-2.5 ${!notif.read ? 'bg-primary/5 font-medium':''}`}
+                    asChild
+                  >
+                    <Link href={notif.link || '#'} className="w-full block">
+                      <p className={`text-sm truncate ${!notif.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notif.message}</p>
+                      <p className={`text-xs ${!notif.read ? 'text-primary' : 'text-muted-foreground/80'}`}>{new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(notif.createdAt).toLocaleDateString()}</p>
+                    </Link>
+                  </DropdownMenuItem>
+                ))
+              )}
             </ScrollArea>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="justify-center">
-              <Link href="/notifications" className="text-sm text-primary">View all notifications</Link>
-            </DropdownMenuItem>
+            {notifications.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="justify-center p-0">
+                   {/* Placeholder for a dedicated notifications page */}
+                  <Button variant="link" asChild className="w-full text-primary">
+                     <Link href="/notifications">View all notifications</Link>
+                  </Button>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         
