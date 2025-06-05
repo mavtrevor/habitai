@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Chrome } from 'lucide-react'; // Github was a placeholder, Chrome is for Google
+import { Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-// import { signInWithEmail, signUpWithEmail, signInWithGoogle } from '@/lib/firebase'; // Mocked
-// import { useRouter } from 'next/navigation';
+import { signInWithEmail, signUpWithEmail, signInWithGoogle } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { FirebaseError } from 'firebase/app';
 
 interface AuthFormProps {
   initialMode?: 'login' | 'signup';
@@ -21,50 +22,55 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
   const [name, setName] = useState(''); // For signup
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  // const router = useRouter();
+  const router = useRouter();
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
 
     try {
-      // if (mode === 'login') {
-      //   await signInWithEmail(email, password);
-      //   toast({ title: 'Login Successful', description: 'Welcome back!' });
-      //   router.push('/dashboard');
-      // } else {
-      //   await signUpWithEmail(name, email, password);
-      //   toast({ title: 'Signup Successful', description: 'Welcome to HabitAI!' });
-      //   router.push('/dashboard');
-      // }
-      // Mock success
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({ title: `${mode === 'login' ? 'Login' : 'Signup'} Successful!`, description: `Mock ${mode} successful.` });
-      // router.push('/dashboard'); // Uncomment when routing is set up
-      if (typeof window !== 'undefined') {
-        window.location.href = '/dashboard'; // Temporary redirect
+      if (mode === 'login') {
+        await signInWithEmail(email, password);
+        toast({ title: 'Login Successful', description: 'Welcome back!' });
+        router.push('/dashboard');
+      } else {
+        await signUpWithEmail(name, email, password);
+        // Note: Firebase signUp doesn't take name directly. Need to update profile post-creation.
+        toast({ title: 'Signup Successful', description: 'Welcome to HabitAI!' });
+        router.push('/dashboard');
       }
-
     } catch (error: any) {
-      toast({ title: 'Authentication Error', description: error.message, variant: 'destructive' });
+      let errorMessage = "An unexpected error occurred.";
+      if (error instanceof FirebaseError) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+            errorMessage = 'Invalid email or password.';
+            break;
+          case 'auth/email-already-in-use':
+            errorMessage = 'This email is already registered.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Password should be at least 6 characters.';
+            break;
+          default:
+            errorMessage = error.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      toast({ title: 'Authentication Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
   
-  const handleOAuth = async (provider: 'google') => { // Only google is supported now
+  const handleOAuth = async (provider: 'google') => {
     setIsLoading(true);
     try {
-      // if (provider === 'google') await signInWithGoogle();
-      // toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
-      // router.push('/dashboard');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({ title: 'OAuth Successful!', description: `Mock login with ${provider} successful.` });
-      // router.push('/dashboard'); // Uncomment when routing is set up
-      if (typeof window !== 'undefined') {
-        window.location.href = '/dashboard'; // Temporary redirect
-      }
-
+      if (provider === 'google') await signInWithGoogle();
+      toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
+      router.push('/dashboard');
     } catch (error: any) {
       toast({ title: 'OAuth Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -75,11 +81,10 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4"> {/* Changed to grid-cols-1 */}
+      <div className="grid grid-cols-1 gap-4">
         <Button variant="outline" onClick={() => handleOAuth('google')} disabled={isLoading} className="w-full">
           <Chrome className="mr-2 h-4 w-4" /> Google
         </Button>
-        {/* Apple button removed */}
       </div>
 
       <div className="relative">

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   ListChecks,
@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from '../ui/separator';
 import React from 'react';
+import { signOut } from '@/lib/firebase'; // Using real signOut
+import { useToast } from '@/hooks/use-toast';
+
 
 const mainNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,6 +48,8 @@ const userNavItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const { open, isMobile } = useSidebar();
   const [hydrated, setHydrated] = React.useState(false);
 
@@ -52,8 +57,19 @@ export function AppSidebar() {
     setHydrated(true);
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push('/auth');
+      toast({title: "Logged Out", description: "You have been successfully logged out."})
+    } catch (error) {
+      console.error('Logout failed:', error);
+      toast({title: "Logout Failed", description: "Could not log you out. Please try again.", variant: "destructive"})
+    }
+  };
 
-  if (!hydrated && !isMobile) { // Prevent flash of skeleton on desktop during SSR/hydration mismatch
+
+  if (!hydrated && !isMobile) { 
     return (
       <Sidebar>
         <SidebarHeader>
@@ -116,15 +132,10 @@ export function AppSidebar() {
             </SidebarMenuItem>
             ))}
             <SidebarMenuItem>
-                 {/* For mock purposes, this will redirect to auth page */}
-                <Link href="/auth" passHref legacyBehavior>
-                    <SidebarMenuButton asChild tooltip="Log Out">
-                        <a>
-                        <LogOut />
-                        <span>Log Out</span>
-                        </a>
-                    </SidebarMenuButton>
-                </Link>
+                <SidebarMenuButton onClick={handleLogout} tooltip="Log Out">
+                    <LogOut />
+                    <span>Log Out</span>
+                </SidebarMenuButton>
             </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
