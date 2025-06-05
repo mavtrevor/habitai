@@ -254,7 +254,7 @@ export const HabitCreatorForm: FC = () => {
         {isFetchingSuggestion && <div className="h-10 w-full animate-pulse rounded-md bg-muted" />}
         {!isFetchingSuggestion && aiSuggestion && (
           <div className="p-3 bg-accent/10 rounded-md">
-            <p className="text-sm text-accent-foreground/90">{aiSuggestion}</p>
+            <p className="text-sm text-accent">{aiSuggestion}</p>
           </div>
         )}
         {!isFetchingSuggestion && !aiSuggestion && (
@@ -270,6 +270,3 @@ export const HabitCreatorForm: FC = () => {
     </form>
   );
 }
-
-
-    
