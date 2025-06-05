@@ -1,8 +1,8 @@
 
-'use client'; // Make it a client component
+'use client'; 
 
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
-import { mockHabits } from '@/lib/mock-data';
+import { getUserHabits } from '@/lib/firebase'; // Use the "API" function
 import type { Habit } from '@/types';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react';
@@ -17,28 +17,45 @@ import {
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
-import React, { useState, useEffect } from 'react'; // Import React hooks
+import React, { useState, useEffect, useCallback } from 'react';
 
 export default function HabitsListPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  // Add more states for filters as needed, e.g.,
+  // const [filterStatus, setFilterStatus] = useState<string | null>(null); 
+  // const [sortBy, setSortBy] = useState<string>('lastUpdated');
 
-  // Function to load habits
-  const loadHabits = () => {
+  const loadHabits = useCallback(async () => {
     setIsLoading(true);
-    // In a real app, this would be an async fetch.
-    // For mock data, we filter the imported mockHabits array.
-    // Assuming 'user123' for the mock setup.
-    const userHabits = mockHabits.filter(habit => habit.userId === 'user123');
-    setHabits(userHabits);
-    setIsLoading(false);
-  };
+    try {
+      let userHabits = await getUserHabits('user123'); // Fetch habits for mock user
+
+      if (searchTerm) {
+        userHabits = userHabits.filter(habit =>
+            habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (habit.description && habit.description.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+      }
+
+      // Implement filtering and sorting logic here based on filterStatus and sortBy states
+      // For example:
+      // if (filterStatus === 'active') { ... }
+      // if (sortBy === 'A-Z') { userHabits.sort(...); }
+
+      setHabits(userHabits);
+    } catch (error) {
+      console.error("Failed to load habits:", error);
+      setHabits([]); // Set to empty or show error message
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm /*, filterStatus, sortBy */]); // Add dependencies
 
   useEffect(() => {
     loadHabits();
-    // Adding mockHabits to dependency array to re-run if the array reference were to change,
-    // though for direct mutation, the component re-rendering due to navigation is what helps.
-  }, []);
+  }, [loadHabits]); // Reload when loadHabits function reference changes (due to its dependencies)
 
   if (isLoading) {
     return (
@@ -61,7 +78,12 @@ export default function HabitsListPage() {
         <div className="flex flex-col xs:flex-row gap-2 items-stretch xs:items-center w-full sm:w-auto">
           <div className="relative flex-grow sm:flex-grow-0">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search habits..." className="pl-8 w-full" />
+            <Input 
+              placeholder="Search habits..." 
+              className="pl-8 w-full" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -72,6 +94,7 @@ export default function HabitsListPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {/* Example filter items - implement state and logic for these */}
               <DropdownMenuCheckboxItem checked>Active</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>Completed Today</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>Archived</DropdownMenuCheckboxItem>

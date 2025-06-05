@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { CheckCircle2, TrendingUp, Zap, Edit3, ListChecks } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-// import { updateHabitProgress } from '@/lib/firebase'; // Mocked
+import { updateHabitProgress as firebaseUpdateHabitProgress } from '@/lib/firebase'; // Use the firebase function
 
 interface HabitProgressCardProps {
   habit: Habit;
@@ -38,29 +38,35 @@ const HabitProgressCardComponent: FC<HabitProgressCardProps> = ({ habit: initial
     : 0;
 
   const handleMarkAsDone = useCallback(async () => {
-    // const todayISO = new Date().toISOString();
-    // try {
-    //   const updatedHabit = await updateHabitProgress(habit.id, todayISO, true);
-    //   if (updatedHabit) setHabit(updatedHabit);
-    //   toast({ title: "Habit Updated!", description: `${habit.title} marked as completed for today.`});
-    // } catch (error) {
-    //   toast({ title: "Error", description: "Could not update habit.", variant: "destructive"});
-    // }
-    // Mock update
     const todayISO = new Date().toISOString();
-    setHabit(currentHabit => {
-      const updatedHabit = { ...currentHabit };
-      const todayProgressIndex = updatedHabit.progress.findIndex(p => p.date.startsWith(todayISO.slice(0,10)));
-      if (todayProgressIndex > -1) {
-          updatedHabit.progress[todayProgressIndex].completed = true;
+    try {
+      // Call the firebase function which now handles localStorage update via mock-data.ts
+      const updatedHabitFromStore = await firebaseUpdateHabitProgress(habit.id, todayISO, true);
+      if (updatedHabitFromStore) {
+        setHabit(updatedHabitFromStore); // Update local state with the potentially modified habit from store (e.g. streak updated)
       } else {
-          updatedHabit.progress.push({date: todayISO, completed: true});
+        // Fallback to local optimistic update if store interaction fails or returns undefined
+        setHabit(currentHabit => {
+            const updatedLocalHabit = { ...currentHabit };
+            updatedLocalHabit.progress = [...currentHabit.progress];
+            const todayProgressIndex = updatedLocalHabit.progress.findIndex(p => p.date.startsWith(todayISO.slice(0,10)));
+            if (todayProgressIndex > -1) {
+                updatedLocalHabit.progress[todayProgressIndex].completed = true;
+            } else {
+                updatedLocalHabit.progress.push({date: todayISO, completed: true});
+            }
+            // Simplified streak update for optimistic UI
+            const oldCompleted = currentHabit.progress.find(p=>p.date.startsWith(todayISO.slice(0,10)))?.completed ?? false;
+            if(!oldCompleted) updatedLocalHabit.streak = (updatedLocalHabit.streak || 0) + 1;
+            return updatedLocalHabit;
+        });
       }
-      updatedHabit.streak = (updatedHabit.streak || 0) + 1;
-      return updatedHabit;
-    });
-    toast({ title: "Habit Updated!", description: `${initialHabit.title} marked as completed for today.`});
-  }, [toast, initialHabit.title]);
+      toast({ title: "Habit Updated!", description: `${initialHabit.title} marked as completed for today.`});
+    } catch (error) {
+      toast({ title: "Error", description: "Could not update habit.", variant: "destructive"});
+      console.error("Error updating habit:", error);
+    }
+  }, [toast, initialHabit.title, habit.id]); // Added habit.id to dependencies
 
 
   return (

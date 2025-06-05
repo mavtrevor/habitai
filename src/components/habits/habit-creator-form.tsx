@@ -2,43 +2,38 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, FormEvent, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import React, { useState, FormEvent, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { suggestHabitMicroTask } from '@/lib/firebase';
+import { suggestHabitMicroTask, addHabit as firebaseAddHabit } from '@/lib/firebase'; // Use firebaseAddHabit
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
-import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react'; // Curated icons, removed Run
+import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import type { ColorResult } from 'react-color';
 import dynamic from 'next/dynamic';
 import type { LucideProps } from 'lucide-react';
-import { mockHabits } from '@/lib/mock-data';
-
 
 const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.TwitterPicker), { 
   ssr: false,
   loading: () => <div className="h-[154px] w-[276px] animate-pulse rounded-md bg-muted" /> 
 });
 
-// Curated list of icons and a map for dynamic rendering
 const curatedIcons: Record<string, React.FC<LucideProps>> = {
   Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, ListChecks, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Zap
 };
-
 const habitIconNames = Object.keys(curatedIcons);
 
 const IconPickerComponent: FC<{ name?: string } & LucideProps> = React.memo(({ name, ...props }) => {
-  const IconComponent = name && curatedIcons[name] ? curatedIcons[name] : ListChecks; // Fallback to ListChecks
+  const IconComponent = name && curatedIcons[name] ? curatedIcons[name] : ListChecks;
   return <IconComponent {...props} />;
 });
 IconPickerComponent.displayName = 'IconPickerComponent';
-
 
 export const HabitCreatorForm: FC = () => {
   const [goal, setGoal] = useState('');
@@ -52,11 +47,10 @@ export const HabitCreatorForm: FC = () => {
   const [isFetchingSuggestion, setIsFetchingSuggestion] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
 
   const [selectedIcon, setSelectedIcon] = useState<string>('ListChecks');
   const [selectedColor, setSelectedColor] = useState<string>('#29ABE2'); 
-
 
   const handleTimeChange = useCallback((time: string) => {
     setAvailableTimes(prev => 
@@ -102,15 +96,7 @@ export const HabitCreatorForm: FC = () => {
     };
     
     try {
-      // Using mockHabits directly as per project setup for mock data persistence
-      mockHabits.push({ 
-        ...newHabitData, 
-        id: `habit${Date.now()}`, 
-        createdAt: new Date().toISOString(), 
-        progress: [], 
-        streak: 0, 
-        userId: 'user123' // Assuming a mock user for now
-      });
+      await firebaseAddHabit(newHabitData); // Use the imported function
 
       toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
       setGoal('');

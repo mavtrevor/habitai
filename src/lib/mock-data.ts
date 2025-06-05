@@ -1,5 +1,7 @@
+
 import type { UserProfile, Habit, CommunityPost, Challenge, Badge, Notification } from '@/types';
 
+// --- User ---
 export const mockUser: UserProfile = {
   id: 'user123',
   name: 'Alex Doe',
@@ -13,7 +15,8 @@ export const mockUser: UserProfile = {
   avatarUrl: 'https://placehold.co/100x100.png',
 };
 
-export const mockHabits: Habit[] = [
+// --- Habits (with localStorage persistence) ---
+const DEFAULT_HABITS: Habit[] = [
   {
     id: 'habit1',
     userId: 'user123',
@@ -43,7 +46,7 @@ export const mockHabits: Habit[] = [
       { date: new Date(Date.now() - 86400000).toISOString(), completed: true },
       { date: new Date().toISOString(), completed: true },
     ],
-    streak: 2, // Streak reset due to missed day, then 2 consecutive days
+    streak: 2,
     createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
     color: 'purple',
     icon: 'BookOpen',
@@ -56,9 +59,9 @@ export const mockHabits: Habit[] = [
     description: 'Energize the day with a 3km run.',
     frequency: '3 times a week',
     progress: [
-       { date: new Date(Date.now() - 86400000 * 6).toISOString(), completed: true }, // Monday
-       { date: new Date(Date.now() - 86400000 * 4).toISOString(), completed: true }, // Wednesday
-       { date: new Date(Date.now() - 86400000 * 2).toISOString(), completed: true }, // Friday
+       { date: new Date(Date.now() - 86400000 * 6).toISOString(), completed: true },
+       { date: new Date(Date.now() - 86400000 * 4).toISOString(), completed: true },
+       { date: new Date(Date.now() - 86400000 * 2).toISOString(), completed: true },
     ],
     streak: 3,
     createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
@@ -68,6 +71,106 @@ export const mockHabits: Habit[] = [
   },
 ];
 
+const MOCK_HABITS_KEY = 'mockHabits_HabitAI_v1'; // Added a version to key to avoid conflicts with old data
+
+const getHabitsFromLocalStorage = (): Habit[] => {
+  if (typeof window !== 'undefined') {
+    const storedHabits = localStorage.getItem(MOCK_HABITS_KEY);
+    if (storedHabits) {
+      try {
+        return JSON.parse(storedHabits);
+      } catch (e) {
+        console.error("Error parsing habits from localStorage", e);
+        localStorage.setItem(MOCK_HABITS_KEY, JSON.stringify(DEFAULT_HABITS));
+        return [...DEFAULT_HABITS];
+      }
+    } else {
+      localStorage.setItem(MOCK_HABITS_KEY, JSON.stringify(DEFAULT_HABITS));
+      return [...DEFAULT_HABITS];
+    }
+  }
+  return [...DEFAULT_HABITS]; // Return a copy for SSR or if window is not defined
+};
+
+const saveHabitsToLocalStorage = (habits: Habit[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(MOCK_HABITS_KEY, JSON.stringify(habits));
+  }
+};
+
+export const getMockHabits = (): Habit[] => {
+  return getHabitsFromLocalStorage();
+};
+
+export const addMockHabit = (newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'>): Habit => {
+  const currentHabits = getHabitsFromLocalStorage();
+  const newHabitEntry: Habit = {
+    ...newHabitData,
+    id: `habit${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    progress: [],
+    streak: 0,
+    userId: 'user123' // Assuming mock user
+  };
+  const updatedHabits = [...currentHabits, newHabitEntry];
+  saveHabitsToLocalStorage(updatedHabits);
+  return newHabitEntry;
+};
+
+export const updateMockHabitProgressData = (habitId: string, date: string, completed: boolean): Habit | undefined => {
+    const habits = getHabitsFromLocalStorage();
+    const habitIndex = habits.findIndex(h => h.id === habitId);
+    if (habitIndex === -1) return undefined;
+
+    const habit = { ...habits[habitIndex] }; // Work with a copy
+    habit.progress = [...habit.progress]; // Copy progress array
+
+    const todayISOStart = date.substring(0,10);
+    const progressIndex = habit.progress.findIndex(p => p.date.startsWith(todayISOStart));
+
+    if (progressIndex > -1) {
+        habit.progress[progressIndex] = { ...habit.progress[progressIndex], completed };
+    } else {
+        habit.progress.push({ date, completed });
+    }
+    
+    // Simplified streak logic: if completed today, increment. If marked not completed (or never completed today), it would reset or pause.
+    // For this mock, we will only increment if 'completed' is true for *today*.
+    // A real streak calculation would need to check consecutive days.
+    const todayProgressEntry = habit.progress.find(p => p.date.startsWith(new Date().toISOString().slice(0,10)));
+    if (todayProgressEntry?.completed) {
+      // This simplistic streak update assumes this function is only called for *today's* progress.
+      // And that if it was previously not complete and now is, streak increases.
+      // A more robust version would check the *previous* day's status.
+      // For now, if *any* 'completed:true' is set for today, it potentially increments.
+      // Let's refine: streak only changes if *this specific action* marks today as complete when it wasn't.
+      const oldCompletedStatus = habits[habitIndex].progress.find(p=>p.date.startsWith(todayISOStart))?.completed ?? false;
+      if(completed && !oldCompletedStatus) {
+        habit.streak = (habit.streak || 0) + 1;
+      } else if (!completed && oldCompletedStatus) {
+        // If un-marking as complete, streak should decrease or reset if it was based on this day.
+        // This part is tricky for a simple mock. For now, let's say unmarking resets current day's contribution.
+        // If this was the only day contributing to the streak, it would decrease.
+        // To keep it simple for mock: if we uncheck, and streak was > 0, decrement.
+        if (habit.streak > 0) habit.streak -=1;
+      }
+
+    } else if (!completed) {
+       // If marking explicitly not complete for today, and a streak existed based on today.
+       const oldCompletedStatus = habits[habitIndex].progress.find(p=>p.date.startsWith(todayISOStart))?.completed ?? false;
+       if(oldCompletedStatus && habit.streak > 0) {
+         habit.streak -= 1;
+       }
+    }
+
+
+    habits[habitIndex] = habit;
+    saveHabitsToLocalStorage(habits);
+    return habit;
+};
+
+
+// --- Other Mock Data (remains in-memory for now unless specified otherwise) ---
 export const mockBadges: Badge[] = [
   { id: 'badge1', name: '7-Day Streak', description: 'Completed a habit for 7 days in a row.', icon: 'Award', earnedAt: new Date().toISOString() },
   { id: 'badge2', name: 'Early Bird', description: 'Completed a morning habit 5 times.', icon: 'Sunrise' },
@@ -150,12 +253,11 @@ export const mockNotifications: Notification[] = [
 
 // Mock API call for AI Insights
 export const getMockAIInsights = async (habitsData: string): Promise<{ insights: string }> => {
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-  // Basic logic based on habitsData string length or keywords for variety.
+  await new Promise(resolve => setTimeout(resolve, 1000)); 
   if (habitsData.includes("water")) {
     return { insights: "You're doing great with hydration! Keep it up. Try adding a slice of lemon for a change." };
   }
-  if (habitsData.length > 100) {
+  if (habitsData.length > 100 && habitsData.length < 300) { // Adjusted length check
     return { insights: "Consistency is key! You've been active on multiple habits. Consider focusing on one area for even better results this week." };
   }
   return { insights: "You're making good progress. Remember to celebrate small wins! Consider setting a new micro-goal for your toughest habit." };
@@ -163,6 +265,7 @@ export const getMockAIInsights = async (habitsData: string): Promise<{ insights:
 
 // Mock API call for Habit Micro-Task Suggestion
 export const getMockHabitMicroTask = async (goal: string, times: string[], difficulty: string): Promise<{ suggestion: string }> => {
-  await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
-  return { suggestion: `For your goal "${goal}", try this ${difficulty} task: Take a 10-minute walk ${times.includes("evening") ? "this evening" : "during your next break"} to clear your head.` };
+  await new Promise(resolve => setTimeout(resolve, 800)); 
+  const timeSuggestion = times.length > 0 ? times.join(", ") : "your preferred time";
+  return { suggestion: `For your goal "${goal}", try this ${difficulty} task: Take a 10-minute walk ${times.includes("evening") || timeSuggestion.includes("evening") ? "this evening" : `during ${timeSuggestion}`} to clear your head.` };
 };
