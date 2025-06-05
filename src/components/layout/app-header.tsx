@@ -30,6 +30,7 @@ const getPageTitle = (pathname: string): string => {
   if (pathname.startsWith('/habits/edit')) return 'Edit Habit';
   if (pathname.startsWith('/habits')) return 'My Habits';
   if (pathname.startsWith('/community')) return 'Community';
+  if (pathname.startsWith('/challenges/create')) return 'Create Challenge';
   if (pathname.startsWith('/challenges')) return 'Challenges';
   if (pathname.startsWith('/progress')) return 'Progress Insights';
   if (pathname.startsWith('/profile')) return 'My Profile';
@@ -61,6 +62,7 @@ export function AppHeader() {
           setIsLoadingNotifications(false);
         }
       } else {
+        setNotifications([]);
         setIsLoadingNotifications(false); // No user, no notifications to load
       }
     };
@@ -144,8 +146,11 @@ export function AppHeader() {
                 notifications.map((notif) => (
                   <DropdownMenuItem 
                     key={notif.id} 
-                    onSelect={() => { if (!notif.read) handleMarkAsRead(notif.id); }} 
-                    className={`flex flex-col items-start p-2.5 ${!notif.read ? 'bg-primary/5 font-medium':''}`}
+                    onSelect={(event) => { 
+                      event.preventDefault(); // Prevent menu from closing immediately if it's a link
+                      if (!notif.read) handleMarkAsRead(notif.id); 
+                    }}
+                    className={`flex flex-col items-start p-2.5 focus:bg-accent/50 ${!notif.read ? 'bg-primary/5 font-medium':''}`}
                     asChild
                   >
                     <Link href={notif.link || '#'} className="w-full block">
