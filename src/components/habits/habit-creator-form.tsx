@@ -10,12 +10,16 @@ import { useToast } from '@/hooks/use-toast';
 import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase'; // Mocked version from lib/firebase
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
-import { Loader2, Wand2, Zap } from 'lucide-react';
+import { Loader2, Wand2, Zap, PlusCircle } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import { mockHabits } from '@/lib/mock-data';
 import * as LucideIcons from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { TwitterPicker, ColorResult } from 'react-color'; // Using react-color for a simple color picker
+import type { ColorResult } from 'react-color'; // Using react-color for a simple color picker
+import dynamic from 'next/dynamic';
+
+const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.TwitterPicker), { ssr: false });
+
 
 const habitIcons = Object.keys(LucideIcons).filter(key => /^[A-Z]/.test(key) && !key.includes("Lucide") && !key.includes("Icon"));
 
