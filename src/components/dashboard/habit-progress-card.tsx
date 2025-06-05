@@ -89,22 +89,22 @@ const HabitProgressCardComponent: FC<HabitProgressCardProps> = ({ habit: initial
           </div>
         )}
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-3 border-t">
-        <div className="text-sm text-muted-foreground flex items-center">
+      <CardFooter className="flex flex-col items-stretch gap-2 pt-3 border-t">
+        <div className="text-sm text-muted-foreground flex items-center justify-center sm:justify-start">
             <TrendingUp className="h-4 w-4 mr-1 text-primary" /> Streak: {habit.streak} {habit.frequency === 'daily' ? 'days' : 'times'}
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" asChild className="flex-grow-0 sm:flex-none">
-            <Link href={`/habits/edit/${habit.id}`}> {/* Assuming an edit page */}
+        <div className="flex gap-2 w-full">
+          <Button variant="outline" size="sm" asChild className="flex-grow-0">
+            <Link href={`/habits/edit/${habit.id}`}>
               <Edit3 className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Edit</span>
             </Link>
           </Button>
           {!completedToday ? (
-            <Button size="sm" onClick={handleMarkAsDone} className="bg-accent text-accent-foreground hover:bg-accent/90 flex-1 sm:flex-none">
+            <Button size="sm" onClick={handleMarkAsDone} className="bg-accent text-accent-foreground hover:bg-accent/90 flex-1">
               <CheckCircle2 className="h-4 w-4 mr-1" /> Mark as Done
             </Button>
           ) : (
-             <Button size="sm" variant="ghost" disabled className="text-green-600 flex-1 sm:flex-none">
+             <Button size="sm" variant="ghost" disabled className="text-green-600 flex-1">
               Completed!
             </Button>
           )}
