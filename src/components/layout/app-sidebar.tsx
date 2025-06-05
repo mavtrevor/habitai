@@ -9,7 +9,6 @@ import {
   PlusCircle,
   Users2,
   UserCircle,
-  Settings,
   LogOut,
   Award,
   BarChart3
@@ -44,7 +43,7 @@ const mainNavItems = [
 
 const userNavItems = [
   { href: '/profile', label: 'Profile', icon: UserCircle },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  // { href: '/settings', label: 'Settings', icon: Settings }, // Removed to avoid 404
 ];
 
 export function AppSidebar() {
