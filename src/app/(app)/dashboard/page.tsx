@@ -4,7 +4,8 @@ import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
 import { AIInsightsCard } from '@/components/dashboard/ai-insights-card';
 import { BadgesOverview } from '@/components/dashboard/badges-overview';
-import { mockHabits, mockBadges } from '@/lib/mock-data';
+import { mockBadges } from '@/lib/mock-data'; // mockBadges is still directly exported
+import { getUserHabits } from '@/lib/firebase'; // Import getUserHabits
 import type { Habit, Badge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -16,8 +17,9 @@ import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 // Mock data fetching
 const getDashboardData = async () => {
   // In a real app, fetch this data
+  const habits = await getUserHabits('user123'); // Use getUserHabits for mock user
   return {
-    habits: mockHabits,
+    habits: habits,
     badges: mockBadges.filter(b => b.earnedAt), // Only show earned badges
   };
 };
