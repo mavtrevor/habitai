@@ -39,12 +39,16 @@ export default function DashboardPage() {
         // import { useRouter } from 'next/navigation';
         // const router = useRouter();
         // router.push('/auth');
+        setIsLoading(false); // Ensure loading stops if user is not authenticated
         return;
       }
       setUserId(currentUser.id);
 
-      const fetchedHabits = await getUserHabits(currentUser.id);
-      const fetchedBadges = await getUserBadges(currentUser.id);
+      // Fetch habits and badges in parallel
+      const [fetchedHabits, fetchedBadges] = await Promise.all([
+        getUserHabits(currentUser.id),
+        getUserBadges(currentUser.id)
+      ]);
 
       setHabits(fetchedHabits);
       setBadges(fetchedBadges);

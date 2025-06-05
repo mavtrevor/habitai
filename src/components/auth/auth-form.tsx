@@ -75,9 +75,7 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
           return;
         }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
-        setTimeout(() => { // setTimeout ensures state updates complete before navigation
-          router.push('/dashboard');
-        }, 0);
+        router.push('/dashboard');
       } else { 
         // signUpWithEmail now handles profile creation in Firestore and email verification
         await signUpWithEmail(name, email, password); 
@@ -123,9 +121,7 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
       // signInWithGoogle now handles profile creation in Firestore
       await signInWithGoogle();
       toast({ title: 'Login Successful', description: `Welcome!` });
-      setTimeout(() => {
-          router.push('/dashboard');
-        }, 0);
+      router.push('/dashboard');
     } catch (error: any) {
       let errorMessage = "An unexpected OAuth error occurred.";
       if (error instanceof FirebaseError) {
