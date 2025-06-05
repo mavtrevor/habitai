@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -650,10 +651,12 @@ const SidebarMenuSkeleton = React.forwardRef<
     showIcon?: boolean
   }
 >(({ className, showIcon = false, ...props }, ref) => {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
+  const [skeletonWidth, setSkeletonWidth] = React.useState("75%"); // Default fixed width
+
+  React.useEffect(() => {
+    // This effect runs only on the client, after the initial render
+    setSkeletonWidth(`${Math.floor(Math.random() * 40) + 50}%`);
+  }, []); // Empty dependency array ensures it runs once on mount (client-side)
 
   return (
     <div
@@ -673,7 +676,7 @@ const SidebarMenuSkeleton = React.forwardRef<
         data-sidebar="menu-skeleton-text"
         style={
           {
-            "--skeleton-width": width,
+            "--skeleton-width": skeletonWidth,
           } as React.CSSProperties
         }
       />
