@@ -123,9 +123,6 @@ export const HabitCreatorForm: FC = () => {
       setSelectedIcon('ListChecks');
       setSelectedColor('#29ABE2');
       
-      // Refresh the current route to re-fetch data and re-render Server Components
-      router.refresh();
-      // Navigate to the habits list page
       router.push('/habits');
 
     } catch (error: any) {
@@ -283,4 +280,3 @@ export const HabitCreatorForm: FC = () => {
     </form>
   );
 }
-

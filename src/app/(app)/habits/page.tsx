@@ -1,9 +1,11 @@
 
+'use client'; // Make it a client component
+
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { mockHabits } from '@/lib/mock-data';
 import type { Habit } from '@/types';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react'; // Added ListChecks
+import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -15,17 +17,42 @@ import {
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
+import React, { useState, useEffect } from 'react'; // Import React hooks
 
+export default function HabitsListPage() {
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-// Mock data fetching for all habits
-const getAllHabits = async (userId: string): Promise<Habit[]> => {
-  // In a real app, fetch this data from Firebase
-  return mockHabits.filter(habit => habit.userId === userId);
-};
+  // Function to load habits
+  const loadHabits = () => {
+    setIsLoading(true);
+    // In a real app, this would be an async fetch.
+    // For mock data, we filter the imported mockHabits array.
+    // Assuming 'user123' for the mock setup.
+    const userHabits = mockHabits.filter(habit => habit.userId === 'user123');
+    setHabits(userHabits);
+    setIsLoading(false);
+  };
 
-export default async function HabitsListPage() {
-  // Assuming a mock user for now
-  const habits = await getAllHabits('user123');
+  useEffect(() => {
+    loadHabits();
+    // Adding mockHabits to dependency array to re-run if the array reference were to change,
+    // though for direct mutation, the component re-rendering due to navigation is what helps.
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-3xl font-bold font-headline">My Habits</h1>
+        </div>
+        <div className="text-center py-12">
+          <ListChecks className="mx-auto h-12 w-12 text-muted-foreground animate-pulse mb-4" />
+          <p className="text-muted-foreground">Loading your habits...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
