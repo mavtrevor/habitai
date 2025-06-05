@@ -2,12 +2,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
 import { AIInsightsCard } from '@/components/dashboard/ai-insights-card';
 import { BadgesOverview } from '@/components/dashboard/badges-overview';
-import { getUserHabits, getUserBadges, getCurrentUser } from '@/lib/firebase';
+import { getUserHabits, getUserBadges } from '@/lib/firebase';
 import type { Habit, Badge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
@@ -18,58 +21,74 @@ import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 export default function DashboardPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const [habitsDataString, setHabitsDataString] = useState<string>("[]");
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        setError("User not authenticated. Please sign in.");
-        setUserId(null);
-        setHabits([]);
-        setBadges([]);
-        setHabitsDataString("[]");
-        setIsLoading(false); 
-        return;
-      }
-      setUserId(currentUser.id);
-
-      const [fetchedHabits, fetchedBadges] = await Promise.all([
-        getUserHabits(currentUser.id),
-        getUserBadges(currentUser.id)
-      ]);
-
-      setHabits(fetchedHabits);
-      setBadges(fetchedBadges);
-      setHabitsDataString(JSON.stringify(fetchedHabits.map(h => ({ title: h.title, progress: h.progress.length, streak: h.streak }))));
-
-    } catch (err: any) {
-      console.error("Error fetching dashboard data:", err);
-      setError(err.message || "Failed to load dashboard data.");
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentFirebaseUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const fetchDashboardData = async () => {
+      if (!currentFirebaseUser) {
+        setHabits([]);
+        setBadges([]);
+        setHabitsDataString("[]");
+        setIsDataLoading(false); // No data to load if no user
+        if (!isAuthLoading && currentFirebaseUser === null) { // Explicitly not logged in
+             // No error message here, will be handled by render logic
+        }
+        return;
+      }
+
+      setIsDataLoading(true);
+      setError(null);
+      try {
+        const [fetchedHabits, fetchedBadges] = await Promise.all([
+          getUserHabits(currentFirebaseUser.uid),
+          getUserBadges(currentFirebaseUser.uid) // Assuming getUserBadges now takes uid
+        ]);
+
+        setHabits(fetchedHabits);
+        setBadges(fetchedBadges);
+        setHabitsDataString(JSON.stringify(fetchedHabits.map(h => ({ title: h.title, progress: h.progress.length, streak: h.streak }))));
+      } catch (err: any) {
+        console.error("Error fetching dashboard data:", err);
+        setError(err.message || "Failed to load dashboard data.");
+        setHabits([]);
+        setBadges([]);
+      } finally {
+        setIsDataLoading(false);
+      }
+    };
+
+    // Only fetch data if auth state is determined (i.e., not undefined)
+    if (currentFirebaseUser !== undefined) {
+      fetchDashboardData();
+    }
+  }, [currentFirebaseUser, isAuthLoading]);
+
 
   const weeklyProgress = React.useMemo(() => {
+    // Ensure this calculation is robust even if habits are temporarily empty during loading
+    if (!habits || habits.length === 0) return [0,0,0,0]; // Default or empty state for chart
     return [
       habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
-      75,
+      75, // These seem like placeholder values, adjust as needed
       70,
       85
     ];
   }, [habits]);
 
-  if (isLoading) {
+  if (isAuthLoading || currentFirebaseUser === undefined) {
     return (
       <div className="flex flex-1 items-center justify-center h-full">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -77,20 +96,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-10 text-destructive">
-        <p>{error}</p>
-        {userId === null && ( 
-             <Button asChild className="mt-4">
-               <Link href="/auth">Sign In</Link>
-            </Button>
-        )}
-      </div>
-    );
-  }
-  
-  if (!userId && !isLoading && !error) { 
+  if (!currentFirebaseUser && !isAuthLoading) {
     return (
       <div className="text-center py-10">
         <p>Please sign in to view your dashboard.</p>
@@ -100,16 +106,33 @@ export default function DashboardPage() {
       </div>
     );
   }
+  
+  // User is authenticated, now check data loading status
+  if (isDataLoading) {
+     return (
+      <div className="flex flex-1 items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <span className="ml-2">Loading dashboard data...</span>
+      </div>
+    );
+  }
 
+  if (error) {
+    return (
+      <div className="text-center py-10 text-destructive">
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <WelcomeBanner />
+      <WelcomeBanner userName={currentFirebaseUser?.displayName || "User"} />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <StreaksOverview habits={habits} />
         <BadgesOverview badges={badges} />
-        {userId && <AIInsightsCard habitsData={habitsDataString} />}
+        {currentFirebaseUser && <AIInsightsCard habitsData={habitsDataString} userId={currentFirebaseUser.uid} />}
       </div>
       
       <div className="grid gap-6 lg:grid-cols-5">

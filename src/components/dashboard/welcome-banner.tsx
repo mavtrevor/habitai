@@ -3,13 +3,14 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import { auth } from '@/lib/firebase/client';
-import type { User as FirebaseUser } from 'firebase/auth';
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function WelcomeBanner() {
+interface WelcomeBannerProps {
+    userName: string | null | undefined; // Accept userName as a prop
+}
+
+export function WelcomeBanner({ userName }: WelcomeBannerProps) {
     const [greeting, setGreeting] = useState("Hello");
-    const [userName, setUserName] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -18,17 +19,13 @@ export function WelcomeBanner() {
         else if (hour < 18) setGreeting("Good afternoon");
         else setGreeting("Good evening");
 
-        const unsubscribe = auth.onAuthStateChanged((firebaseUser: FirebaseUser | null) => {
-            if (firebaseUser) {
-                setUserName(firebaseUser.displayName || "User");
-            } else {
-                setUserName("Guest"); // Fallback if no user is logged in
-            }
+        // Determine loading state based on userName prop
+        if (userName === undefined) { // Still loading from parent
+            setIsLoading(true);
+        } else {
             setIsLoading(false);
-        });
-
-        return () => unsubscribe(); // Cleanup listener
-    }, []);
+        }
+    }, [userName]);
 
     return (
         <Card className="bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg">
@@ -36,8 +33,8 @@ export function WelcomeBanner() {
                 <div>
                     {isLoading ? (
                         <>
-                            <Skeleton className="h-8 w-48 mb-2" />
-                            <Skeleton className="h-4 w-64" />
+                            <Skeleton className="h-8 w-48 mb-2 bg-primary/30" />
+                            <Skeleton className="h-4 w-64 bg-primary/30" />
                         </>
                     ) : (
                         <>
