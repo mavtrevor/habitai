@@ -6,9 +6,9 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
-  sendEmailVerification,
-  updateProfile, // Added for potential future use with displayName
-  User
+  sendEmailVerification as firebaseSendEmailVerification, // Renamed to avoid conflict if re-exporting
+  updateProfile,
+  type User
 } from 'firebase/auth';
 
 import { mockUser, mockHabits, mockPosts, mockChallenges, mockBadges, mockNotifications, getMockAIInsights, getMockHabitMicroTask } from './mock-data';
@@ -21,14 +21,14 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Firebase Auth functions
 export const getCurrentUser = async (): Promise<UserProfile | null> => {
-  await delay(50); 
+  await delay(50);
   const firebaseUser = auth?.currentUser;
   if (firebaseUser) {
     return {
       id: firebaseUser.uid,
       name: firebaseUser.displayName || 'User',
       email: firebaseUser.email || '',
-      avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl, 
+      avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl,
       createdAt: firebaseUser.metadata.creationTime || new Date().toISOString(),
       timezone: mockUser.timezone,
       preferences: mockUser.preferences
@@ -46,18 +46,16 @@ export const signInWithEmail = async (email: string, pass: string): Promise<User
 export const signUpWithEmail = async (name: string, email: string, pass: string): Promise<User> => {
   if (!auth) throw new Error("Firebase auth not initialized");
   const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-  
-  // It's good practice to set the display name here if provided during sign up
+  const user = userCredential.user;
+
   if (name) {
-    await updateProfile(userCredential.user, { displayName: name });
+    await updateProfile(user, { displayName: name });
   }
 
-  await sendEmailVerification(userCredential.user);
-  
-  // Sign the user out immediately after sending verification, so they have to log in after verifying
-  await firebaseSignOut(auth); 
+  await firebaseSendEmailVerification(user);
+  await firebaseSignOut(auth);
 
-  return userCredential.user; // Return the user object, though they are now signed out
+  return user;
 };
 
 export const signInWithGoogle = async (): Promise<User> => {
@@ -70,6 +68,12 @@ export const signInWithGoogle = async (): Promise<User> => {
 export const signOut = async (): Promise<void> => {
   if (!auth) throw new Error("Firebase auth not initialized");
   await firebaseSignOut(auth);
+};
+
+// Export sendEmailVerification so it can be used in the AuthForm
+export const sendEmailVerification = async (user: User): Promise<void> => {
+  if (!auth) throw new Error("Firebase auth not initialized");
+  await firebaseSendEmailVerification(user);
 };
 
 
@@ -171,7 +175,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       preferences: mockUser.preferences
     };
   }
-  if (userId === mockUser.id && !firebaseUser) return mockUser; 
+  if (userId === mockUser.id && !firebaseUser) return mockUser;
   return null;
 }
 
@@ -180,7 +184,7 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
   const firebaseUser = auth?.currentUser;
   if (firebaseUser && firebaseUser.uid === userId) {
     // Example: await updateProfile(firebaseUser, { displayName: data.name, photoURL: data.avatarUrl });
-    Object.assign(mockUser, data); 
+    Object.assign(mockUser, data);
     return { ...mockUser, ...data, id: userId, email: firebaseUser.email || mockUser.email };
   }
   return null;

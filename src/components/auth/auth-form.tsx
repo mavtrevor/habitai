@@ -8,10 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '@/lib/firebase';
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, sendEmailVerification } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { FirebaseError } from 'firebase/app';
-import { auth } from '@/lib/firebase/client'; // Import auth directly for currentUser checks
+import { type User } from 'firebase/auth'; // Import User type
+import { ToastAction } from '@/components/ui/toast'; // Import ToastAction
 
 interface AuthFormProps {
   initialMode?: 'login' | 'signup';
@@ -23,38 +24,66 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState(''); // For signup
   const [isLoading, setIsLoading] = useState(false);
+  const [unverifiedUserForResend, setUnverifiedUserForResend] = useState<User | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+  const handleResendVerificationEmail = async () => {
+    if (!unverifiedUserForResend) return;
+    setIsLoading(true);
+    try {
+      await sendEmailVerification(unverifiedUserForResend);
+      toast({
+        title: 'Verification Email Resent',
+        description: 'A new verification email has been sent. Please check your inbox.',
+      });
+      setUnverifiedUserForResend(null); // Clear the stored user
+    } catch (error: any) {
+      toast({ title: 'Error Resending Email', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
+    setUnverifiedUserForResend(null); // Clear previous unverified user state
 
     try {
       if (mode === 'login') {
-        await signInWithEmail(email, password);
-        if (auth.currentUser && !auth.currentUser.emailVerified) {
+        const user = await signInWithEmail(email, password); // Returns User object
+        if (user && !user.emailVerified) {
+          setUnverifiedUserForResend(user); // Store user for potential resend
           toast({
             title: 'Email Not Verified',
             description: 'Please verify your email address before signing in. Check your inbox (and spam folder) for the verification link.',
             variant: 'destructive',
             duration: 10000,
+            action: (
+              <ToastAction
+                altText="Resend verification email"
+                onClick={handleResendVerificationEmail}
+              >
+                Resend Email
+              </ToastAction>
+            ),
           });
           await signOut(); // Sign them out
           setIsLoading(false);
-          return; // Stop further processing
+          return;
         }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
         router.push('/dashboard');
       } else { // signup mode
-        await signUpWithEmail(name, email, password);
+        await signUpWithEmail(name, email, password); // This now signs user out and sends verification
         toast({
           title: 'Signup Successful! Please Verify Your Email',
           description: `A verification email has been sent to ${email}. Please check your inbox (and spam folder) and click the verification link before signing in.`,
-          duration: 10000, 
+          duration: 10000,
         });
-        setMode('login'); 
-        setPassword(''); 
+        setMode('login');
+        setPassword('');
       }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
@@ -71,8 +100,6 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
           case 'auth/weak-password':
             errorMessage = 'Password should be at least 6 characters.';
             break;
-          // Firebase might return 'auth/user-disabled' or a similar error if email verification is enforced and not completed.
-          // However, the check `!auth.currentUser.emailVerified` after login attempt is a more general way to handle it.
           default:
             errorMessage = error.message;
         }
@@ -84,12 +111,11 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
       setIsLoading(false);
     }
   };
-  
+
   const handleOAuth = async (provider: 'google') => {
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      // Google sign-in users are typically considered verified by Google.
       toast({ title: 'Login Successful', description: `Welcome via ${provider}!` });
       router.push('/dashboard');
     } catch (error: any) {
