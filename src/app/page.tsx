@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Zap, Users, TrendingUp } from "lucide-react";
@@ -66,7 +67,7 @@ export default function LandingPage() {
                 width={800} 
                 height={450}
                 className="rounded-lg shadow-2xl mx-auto border-4 border-primary/20"
-                data-ai-hint="dashboard application"
+                data-ai-hint="AI plant"
               />
             </div>
           </div>
