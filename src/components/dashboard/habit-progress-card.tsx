@@ -66,7 +66,7 @@ const HabitProgressCardComponent: FC<HabitProgressCardProps> = ({ habit: initial
       toast({ title: "Error", description: "Could not update habit.", variant: "destructive"});
       console.error("Error updating habit:", error);
     }
-  }, [toast, initialHabit.title, habit.id]); // Added habit.id to dependencies
+  }, [toast, initialHabit.title, habit.id]);
 
 
   return (
@@ -91,7 +91,7 @@ const HabitProgressCardComponent: FC<HabitProgressCardProps> = ({ habit: initial
         </div>
         {habit.aiSuggestedTask && (
           <div className="mt-2 p-2 bg-secondary/30 rounded-md text-xs text-secondary-foreground">
-            <p className="flex items-start"><Zap className="h-3 w-3 mr-1.5 mt-0.5 text-accent flex-shrink-0" /> <strong>AI Task:</strong> {habit.aiSuggestedTask}</p>
+            <p className="flex items-start"><Zap className="h-3 w-3 mr-1.5 mt-0.5 text-accent flex-shrink-0" /> <strong>AI Task:</strong>{' '}{habit.aiSuggestedTask}</p>
           </div>
         )}
       </CardContent>
