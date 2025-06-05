@@ -15,6 +15,8 @@ import {
   mockUser, 
   getMockHabits, 
   addMockHabit, 
+  updateMockHabit,
+  getMockHabitById,
   updateMockHabitProgressData,
   mockPosts, 
   mockChallenges, 
@@ -89,15 +91,25 @@ export const sendEmailVerification = async (user: User): Promise<void> => {
 
 // Mock Data Interaction functions
 export const getUserHabits = async (userId: string): Promise<Habit[]> => {
-  await delay(100); // Reduced delay for faster UI updates with localStorage
+  await delay(100); 
   const allHabits = getMockHabits();
   return allHabits.filter(habit => habit.userId === userId);
 };
+
+export const getHabitById = async (habitId: string): Promise<Habit | undefined> => {
+  await delay(50);
+  return getMockHabitById(habitId);
+}
 
 export const addHabit = async (habitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'>): Promise<Habit> => {
   await delay(100);
   return addMockHabit(habitData);
 };
+
+export const updateHabit = async (habitData: Habit): Promise<Habit | undefined> => {
+  await delay(100);
+  return updateMockHabit(habitData);
+}
 
 export const updateHabitProgress = async (habitId: string, date: string, completed: boolean): Promise<Habit | undefined> => {
   await delay(100);
@@ -123,7 +135,7 @@ export const addCommunityPost = async (postData: Omit<CommunityPost, 'id' | 'cre
     commentsCount: 0,
     createdAt: new Date().toISOString(),
   };
-  mockPosts.unshift(newPost); // This still modifies in-memory mockPosts, consider localStorage if needed
+  mockPosts.unshift(newPost); 
   return newPost;
 }
 
@@ -136,7 +148,7 @@ export const likePost = async (postId: string, userId: string): Promise<Communit
   } else {
     post.likes.push(userId);
   }
-  return post; // This modifies in-memory mockPosts
+  return post; 
 }
 
 export const getChallenges = async (): Promise<Challenge[]> => {
@@ -146,7 +158,6 @@ export const getChallenges = async (): Promise<Challenge[]> => {
 
 export const getUserBadges = async (userId: string): Promise<Badge[]> => {
   await delay(400);
-  // Assuming badges are static or fetched and don't need localStorage for this example
   return mockBadges.filter(b => b.earnedAt); 
 };
 
@@ -160,11 +171,11 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       email: firebaseUser.email || '',
       avatarUrl: firebaseUser.photoURL || mockUser.avatarUrl,
       createdAt: firebaseUser.metadata.creationTime || new Date().toISOString(),
-      timezone: mockUser.timezone, // mockUser is still source of truth for these
+      timezone: mockUser.timezone, 
       preferences: mockUser.preferences
     };
   }
-  if (userId === mockUser.id && !firebaseUser) return mockUser; // Fallback to mockUser
+  if (userId === mockUser.id && !firebaseUser) return mockUser; 
   return null;
 }
 
@@ -172,10 +183,7 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
   await delay(400);
   const firebaseUser = auth?.currentUser;
   if (firebaseUser && firebaseUser.uid === userId) {
-    // Firebase update logic would go here (e.g., updateProfile(firebaseUser, ...))
-    // For mock:
-    Object.assign(mockUser, data); // Modifies the in-memory mockUser
-    // To persist profile changes, mockUser would also need localStorage handling
+    Object.assign(mockUser, data); 
     return { ...mockUser, ...data, id: userId, email: firebaseUser.email || mockUser.email };
   }
   return null;
@@ -205,3 +213,5 @@ export const markNotificationAsRead = async (notificationId: string): Promise<bo
   }
   return false;
 }
+
+    

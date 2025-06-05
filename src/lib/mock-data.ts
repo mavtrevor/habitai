@@ -71,7 +71,7 @@ const DEFAULT_HABITS: Habit[] = [
   },
 ];
 
-const MOCK_HABITS_KEY = 'mockHabits_HabitAI_v1'; // Added a version to key to avoid conflicts with old data
+const MOCK_HABITS_KEY = 'mockHabits_HabitAI_v1';
 
 const getHabitsFromLocalStorage = (): Habit[] => {
   if (typeof window !== 'undefined') {
@@ -102,6 +102,11 @@ export const getMockHabits = (): Habit[] => {
   return getHabitsFromLocalStorage();
 };
 
+export const getMockHabitById = (id: string): Habit | undefined => {
+  const habits = getHabitsFromLocalStorage();
+  return habits.find(habit => habit.id === id);
+};
+
 export const addMockHabit = (newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'>): Habit => {
   const currentHabits = getHabitsFromLocalStorage();
   const newHabitEntry: Habit = {
@@ -116,6 +121,17 @@ export const addMockHabit = (newHabitData: Omit<Habit, 'id' | 'createdAt' | 'pro
   saveHabitsToLocalStorage(updatedHabits);
   return newHabitEntry;
 };
+
+export const updateMockHabit = (updatedHabit: Habit): Habit | undefined => {
+  const habits = getHabitsFromLocalStorage();
+  const habitIndex = habits.findIndex(h => h.id === updatedHabit.id);
+  if (habitIndex === -1) return undefined;
+
+  habits[habitIndex] = { ...habits[habitIndex], ...updatedHabit };
+  saveHabitsToLocalStorage(habits);
+  return habits[habitIndex];
+};
+
 
 export const updateMockHabitProgressData = (habitId: string, date: string, completed: boolean): Habit | undefined => {
     const habits = getHabitsFromLocalStorage();
@@ -134,29 +150,16 @@ export const updateMockHabitProgressData = (habitId: string, date: string, compl
         habit.progress.push({ date, completed });
     }
     
-    // Simplified streak logic: if completed today, increment. If marked not completed (or never completed today), it would reset or pause.
-    // For this mock, we will only increment if 'completed' is true for *today*.
-    // A real streak calculation would need to check consecutive days.
     const todayProgressEntry = habit.progress.find(p => p.date.startsWith(new Date().toISOString().slice(0,10)));
     if (todayProgressEntry?.completed) {
-      // This simplistic streak update assumes this function is only called for *today's* progress.
-      // And that if it was previously not complete and now is, streak increases.
-      // A more robust version would check the *previous* day's status.
-      // For now, if *any* 'completed:true' is set for today, it potentially increments.
-      // Let's refine: streak only changes if *this specific action* marks today as complete when it wasn't.
       const oldCompletedStatus = habits[habitIndex].progress.find(p=>p.date.startsWith(todayISOStart))?.completed ?? false;
       if(completed && !oldCompletedStatus) {
         habit.streak = (habit.streak || 0) + 1;
       } else if (!completed && oldCompletedStatus) {
-        // If un-marking as complete, streak should decrease or reset if it was based on this day.
-        // This part is tricky for a simple mock. For now, let's say unmarking resets current day's contribution.
-        // If this was the only day contributing to the streak, it would decrease.
-        // To keep it simple for mock: if we uncheck, and streak was > 0, decrement.
         if (habit.streak > 0) habit.streak -=1;
       }
 
     } else if (!completed) {
-       // If marking explicitly not complete for today, and a streak existed based on today.
        const oldCompletedStatus = habits[habitIndex].progress.find(p=>p.date.startsWith(todayISOStart))?.completed ?? false;
        if(oldCompletedStatus && habit.streak > 0) {
          habit.streak -= 1;
@@ -269,3 +272,5 @@ export const getMockHabitMicroTask = async (goal: string, times: string[], diffi
   const timeSuggestion = times.length > 0 ? times.join(", ") : "your preferred time";
   return { suggestion: `For your goal "${goal}", try this ${difficulty} task: Take a 10-minute walk ${times.includes("evening") || timeSuggestion.includes("evening") ? "this evening" : `during ${timeSuggestion}`} to clear your head.` };
 };
+
+    

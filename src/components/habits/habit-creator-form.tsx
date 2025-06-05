@@ -2,7 +2,7 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, FormEvent, useCallback } from 'react';
+import React, { useState, FormEvent, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { suggestHabitMicroTask, addHabit as firebaseAddHabit } from '@/lib/firebase'; // Use firebaseAddHabit
+import { suggestHabitMicroTask, addHabit as firebaseAddHabit, updateHabit as firebaseUpdateHabit } from '@/lib/firebase';
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
-import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react';
+import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Edit3 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import type { ColorResult } from 'react-color';
 import dynamic from 'next/dynamic';
@@ -35,7 +35,12 @@ const IconPickerComponent: FC<{ name?: string } & LucideProps> = React.memo(({ n
 });
 IconPickerComponent.displayName = 'IconPickerComponent';
 
-export const HabitCreatorForm: FC = () => {
+interface HabitCreatorFormProps {
+  habitToEdit?: Habit;
+  mode?: 'create' | 'edit';
+}
+
+export const HabitCreatorForm: FC<HabitCreatorFormProps> = ({ habitToEdit, mode = 'create' }) => {
   const [goal, setGoal] = useState('');
   const [description, setDescription] = useState('');
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
@@ -51,6 +56,25 @@ export const HabitCreatorForm: FC = () => {
 
   const [selectedIcon, setSelectedIcon] = useState<string>('ListChecks');
   const [selectedColor, setSelectedColor] = useState<string>('#29ABE2'); 
+
+  useEffect(() => {
+    if (mode === 'edit' && habitToEdit) {
+      setGoal(habitToEdit.title);
+      setDescription(habitToEdit.description || '');
+      setFrequency(habitToEdit.frequency); // Handle custom frequency if needed
+      // Assuming frequency might be custom, you might need to parse it or have a specific field
+      if (!['daily', 'weekly', 'weekdays', 'weekends'].includes(habitToEdit.frequency)) {
+        setFrequency('custom');
+        setCustomFrequency(habitToEdit.frequency);
+      }
+      setAiSuggestion(habitToEdit.aiSuggestedTask || '');
+      setSelectedIcon(habitToEdit.icon || 'ListChecks');
+      setSelectedColor(habitToEdit.color || '#29ABE2');
+      // Note: availableTimes and difficulty are not part of Habit type,
+      // so cannot prefill them from habitToEdit directly unless added to type
+    }
+  }, [mode, habitToEdit]);
+
 
   const handleTimeChange = useCallback((time: string) => {
     setAvailableTimes(prev => 
@@ -86,37 +110,53 @@ export const HabitCreatorForm: FC = () => {
 
     const finalFrequency = frequency === 'custom' ? customFrequency : frequency;
 
-    const newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'> = {
-      title: goal,
-      description,
-      frequency: finalFrequency,
-      aiSuggestedTask: aiSuggestion,
-      icon: selectedIcon,
-      color: selectedColor,
-    };
-    
     try {
-      await firebaseAddHabit(newHabitData); // Use the imported function
-
-      toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
-      setGoal('');
-      setDescription('');
-      setAiSuggestion('');
-      setAvailableTimes([]);
-      setFrequency('daily');
-      setCustomFrequency('');
-      setDifficulty('medium');
-      setSelectedIcon('ListChecks');
-      setSelectedColor('#29ABE2');
+      if (mode === 'edit' && habitToEdit) {
+        const updatedHabitData: Habit = {
+          ...habitToEdit,
+          title: goal,
+          description,
+          frequency: finalFrequency,
+          aiSuggestedTask: aiSuggestion,
+          icon: selectedIcon,
+          color: selectedColor,
+        };
+        await firebaseUpdateHabit(updatedHabitData);
+        toast({ title: 'Habit Updated!', description: `${goal} has been updated.` });
+      } else {
+        const newHabitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId'> = {
+          title: goal,
+          description,
+          frequency: finalFrequency,
+          aiSuggestedTask: aiSuggestion,
+          icon: selectedIcon,
+          color: selectedColor,
+        };
+        await firebaseAddHabit(newHabitData);
+        toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
+      }
+      
+      // Reset form only if in create mode or if desired after edit
+      if (mode === 'create') {
+        setGoal('');
+        setDescription('');
+        setAiSuggestion('');
+        setAvailableTimes([]);
+        setFrequency('daily');
+        setCustomFrequency('');
+        setDifficulty('medium');
+        setSelectedIcon('ListChecks');
+        setSelectedColor('#29ABE2');
+      }
       
       router.push('/habits');
 
     } catch (error: any) {
-      toast({ title: 'Error Creating Habit', description: error.message, variant: 'destructive' });
+      toast({ title: `Error ${mode === 'edit' ? 'Updating' : 'Creating'} Habit`, description: error.message, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast, router, availableTimes, difficulty]);
+  }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast, router, availableTimes, difficulty, mode, habitToEdit]);
   
   const handleColorChange = useCallback((color: ColorResult) => {
     setSelectedColor(color.hex);
@@ -260,9 +300,17 @@ export const HabitCreatorForm: FC = () => {
 
 
       <Button type="submit" className="w-full text-lg py-3" disabled={isLoading || !goal} size="lg">
-        {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-        Create Habit
+        {isLoading ? (
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        ) : mode === 'edit' ? (
+          <Edit3 className="mr-2 h-5 w-5" />
+        ) : (
+          <PlusCircle className="mr-2 h-5 w-5" />
+        )}
+        {mode === 'edit' ? 'Save Changes' : 'Create Habit'}
       </Button>
     </form>
   );
 }
+
+    
