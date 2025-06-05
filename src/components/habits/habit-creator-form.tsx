@@ -1,13 +1,15 @@
+
 'use client';
 
-import { useState, FormEvent } from 'react';
+import type { FC } from 'react';
+import React, { useState, FormEvent, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase'; // Mocked version from lib/firebase
+import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase';
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
 import { Loader2, Wand2, Zap, PlusCircle } from 'lucide-react';
@@ -15,16 +17,24 @@ import { Checkbox } from '../ui/checkbox';
 import { mockHabits } from '@/lib/mock-data';
 import * as LucideIcons from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import type { ColorResult } from 'react-color'; // Using react-color for a simple color picker
+import type { ColorResult } from 'react-color';
 import dynamic from 'next/dynamic';
 
 const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.TwitterPicker), { ssr: false });
 
-
 const habitIcons = Object.keys(LucideIcons).filter(key => /^[A-Z]/.test(key) && !key.includes("Lucide") && !key.includes("Icon"));
 
+const IconPickerComponent: FC<{ name?: string } & LucideIcons.LucideProps> = React.memo(({ name, ...props }) => {
+  if (!name || !(name in LucideIcons)) {
+    return <LucideIcons.ListChecks {...props} />; 
+  }
+  const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
+  return <Icon {...props} />;
+});
+IconPickerComponent.displayName = 'IconPickerComponent';
 
-export function HabitCreatorForm() {
+
+export const HabitCreatorForm: FC = () => {
   const [goal, setGoal] = useState('');
   const [description, setDescription] = useState('');
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
@@ -38,16 +48,16 @@ export function HabitCreatorForm() {
   const { toast } = useToast();
 
   const [selectedIcon, setSelectedIcon] = useState<string>('ListChecks');
-  const [selectedColor, setSelectedColor] = useState<string>('#29ABE2'); // Default primary color
+  const [selectedColor, setSelectedColor] = useState<string>('#29ABE2'); 
 
 
-  const handleTimeChange = (time: string) => {
+  const handleTimeChange = useCallback((time: string) => {
     setAvailableTimes(prev => 
       prev.includes(time) ? prev.filter(t => t !== time) : [...prev, time]
     );
-  };
+  }, []);
 
-  const fetchAiSuggestion = async () => {
+  const fetchAiSuggestion = useCallback(async () => {
     if (!goal) {
       toast({ title: 'Goal Required', description: 'Please enter a habit goal to get suggestions.', variant: 'destructive' });
       return;
@@ -67,9 +77,9 @@ export function HabitCreatorForm() {
     } finally {
       setIsFetchingSuggestion(false);
     }
-  };
+  }, [goal, availableTimes, difficulty, toast]);
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
 
@@ -82,24 +92,19 @@ export function HabitCreatorForm() {
       aiSuggestedTask: aiSuggestion,
       icon: selectedIcon,
       color: selectedColor,
-      // userId will be set by the backend/mock function
     };
     
     try {
-      // const newHabit = await mockAddHabit(newHabitData); // Using mockAddHabit
-      // For now, just log to console and show toast
-      console.log("New Habit:", { ...newHabitData, userId: 'user123' }); // Adding mock userId
+      console.log("New Habit:", { ...newHabitData, userId: 'user123' }); 
       mockHabits.push({ ...newHabitData, id: `habit${Date.now()}`, createdAt: new Date().toISOString(), progress: [], streak: 0, userId: 'user123' });
 
       toast({ title: 'Habit Created!', description: `${goal} has been added to your habits.` });
-      // Reset form or redirect
       setGoal('');
       setDescription('');
       setAiSuggestion('');
       setAvailableTimes([]);
-      // router.push('/habits'); // If using next/navigation
       if (typeof window !== 'undefined') {
-        window.location.href = '/habits'; // Temporary redirect
+        window.location.href = '/habits';
       }
 
     } catch (error: any) {
@@ -107,19 +112,11 @@ export function HabitCreatorForm() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const IconComponent = ({ name, ...props }: { name?: string } & LucideIcons.LucideProps) => {
-    if (!name || !(name in LucideIcons)) {
-      return <LucideIcons.ListChecks {...props} />; // Default icon
-    }
-    const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
-    return <Icon {...props} />;
-  };
+  }, [goal, description, frequency, customFrequency, aiSuggestion, selectedIcon, selectedColor, toast]);
   
-  const handleColorChange = (color: ColorResult) => {
+  const handleColorChange = useCallback((color: ColorResult) => {
     setSelectedColor(color.hex);
-  };
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -154,11 +151,11 @@ export function HabitCreatorForm() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-16 h-10 flex items-center justify-center">
-                  <IconComponent name={selectedIcon} style={{ color: selectedColor }} className="h-5 w-5" />
+                  <IconPickerComponent name={selectedIcon} style={{ color: selectedColor }} className="h-5 w-5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
-                 <TwitterPicker color={selectedColor} onChangeComplete={handleColorChange} triangle="hide" />
+                 {typeof window !== 'undefined' && TwitterPicker && <TwitterPicker color={selectedColor} onChangeComplete={handleColorChange} triangle="hide" />}
               </PopoverContent>
             </Popover>
             <Select value={selectedIcon} onValueChange={setSelectedIcon}>
@@ -166,10 +163,10 @@ export function HabitCreatorForm() {
                 <SelectValue placeholder="Select Icon" />
               </SelectTrigger>
               <SelectContent>
-                {habitIcons.slice(0,50).map(iconName => ( // Limit for performance
+                {habitIcons.slice(0,50).map(iconName => ( 
                   <SelectItem key={iconName} value={iconName}>
                     <div className="flex items-center gap-2">
-                      <IconComponent name={iconName} className="h-4 w-4" /> {iconName}
+                      <IconPickerComponent name={iconName} className="h-4 w-4" /> {iconName}
                     </div>
                   </SelectItem>
                 ))}
@@ -246,7 +243,7 @@ export function HabitCreatorForm() {
             Suggest Task
           </Button>
         </div>
-        {isFetchingSuggestion && <Skeleton className="h-10 w-full" />}
+        {isFetchingSuggestion && <div className="h-10 w-full animate-pulse rounded-md bg-muted" />}
         {!isFetchingSuggestion && aiSuggestion && (
           <div className="p-3 bg-accent/10 rounded-md">
             <p className="text-sm text-accent-foreground/90">{aiSuggestion}</p>
@@ -265,3 +262,4 @@ export function HabitCreatorForm() {
     </form>
   );
 }
+

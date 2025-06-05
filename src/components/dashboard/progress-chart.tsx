@@ -1,12 +1,15 @@
+
 'use client';
 
+import type { FC } from 'react';
+import React from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartTooltipContent, ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { TrendingUp } from 'lucide-react';
 
 interface ProgressChartProps {
-  weeklyProgress: number[]; // Array of completion rates for last 4 weeks
+  weeklyProgress: number[]; 
 }
 
 const chartConfig = {
@@ -16,11 +19,11 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function ProgressChart({ weeklyProgress }: ProgressChartProps) {
-  const chartData = weeklyProgress.map((rate, index) => ({
+const ProgressChartComponent: FC<ProgressChartProps> = ({ weeklyProgress }) => {
+  const chartData = React.useMemo(() => weeklyProgress.map((rate, index) => ({
     week: `Week ${index + 1}`,
     completionRate: rate,
-  }));
+  })), [weeklyProgress]);
 
   return (
     <Card className="shadow-lg">
@@ -59,3 +62,6 @@ export function ProgressChart({ weeklyProgress }: ProgressChartProps) {
     </Card>
   );
 }
+
+export const ProgressChart = React.memo(ProgressChartComponent);
+ProgressChart.displayName = 'ProgressChart';

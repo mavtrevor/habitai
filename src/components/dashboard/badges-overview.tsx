@@ -1,3 +1,7 @@
+
+'use client';
+import type { FC } from 'react';
+import React from 'react';
 import type { Badge as BadgeType } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Award, ShieldCheck } from 'lucide-react';
@@ -9,16 +13,17 @@ interface BadgesOverviewProps {
   badges: BadgeType[];
 }
 
-const IconComponent = ({ name, ...props }: { name?: string } & LucideIcons.LucideProps) => {
+const IconComponent: FC<{ name?: string } & LucideIcons.LucideProps> = React.memo(({ name, ...props }) => {
   if (!name || !(name in LucideIcons)) {
     return <Award {...props} />; // Default icon
   }
   const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
   return <Icon {...props} />;
-};
+});
+IconComponent.displayName = 'IconComponent';
 
 
-export function BadgesOverview({ badges }: BadgesOverviewProps) {
+const BadgesOverviewComponent: FC<BadgesOverviewProps> = ({ badges }) => {
   const recentBadges = badges.slice(0, 3); // Show 3 most recent badges
 
   return (
@@ -54,3 +59,6 @@ export function BadgesOverview({ badges }: BadgesOverviewProps) {
     </Card>
   );
 }
+
+export const BadgesOverview = React.memo(BadgesOverviewComponent);
+BadgesOverview.displayName = 'BadgesOverview';

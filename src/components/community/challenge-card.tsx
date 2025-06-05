@@ -1,8 +1,12 @@
+
+'use client';
+import type { FC } from 'react';
+import React from 'react';
 import type { Challenge } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, CalendarDays, Trophy, BarChart } from 'lucide-react';
+import { Users, CalendarDays, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Progress } from '../ui/progress';
@@ -12,7 +16,7 @@ interface ChallengeCardProps {
   challenge: Challenge;
 }
 
-export function ChallengeCard({ challenge }: ChallengeCardProps) {
+const ChallengeCardComponent: FC<ChallengeCardProps> = ({ challenge }) => {
   const daysRemaining = differenceInDays(new Date(challenge.endDate), new Date());
   const totalDays = differenceInDays(new Date(challenge.endDate), new Date(challenge.startDate));
   const progress = totalDays > 0 ? Math.max(0, Math.min(100, ((totalDays - daysRemaining) / totalDays) * 100)) : 0;
@@ -61,7 +65,7 @@ export function ChallengeCard({ challenge }: ChallengeCardProps) {
              <p className="font-medium mb-1 flex items-center"><Trophy className="h-3 w-3 mr-1 text-yellow-500"/> Top Participant:</p>
             <div className="flex items-center gap-1.5">
               <Avatar className="h-5 w-5">
-                <AvatarImage src={challenge.leaderboard[0].avatarUrl} data-ai-hint="person avatar" />
+                <AvatarImage src={challenge.leaderboard[0].avatarUrl} data-ai-hint="person avatar"/>
                 <AvatarFallback>{challenge.leaderboard[0].userName.charAt(0)}</AvatarFallback>
               </Avatar>
               <span>{challenge.leaderboard[0].userName} - {challenge.leaderboard[0].score} pts</span>
@@ -77,3 +81,6 @@ export function ChallengeCard({ challenge }: ChallengeCardProps) {
     </Card>
   );
 }
+
+export const ChallengeCard = React.memo(ChallengeCardComponent);
+ChallengeCard.displayName = 'ChallengeCard';

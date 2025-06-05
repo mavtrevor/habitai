@@ -1,7 +1,8 @@
 
 'use client';
 
-import { useState, FormEvent } from 'react';
+import type { FC } from 'react';
+import React, { useState, FormEvent, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,14 +12,14 @@ import { useToast } from '@/hooks/use-toast';
 import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, sendEmailVerification } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { FirebaseError } from 'firebase/app';
-import { type User } from 'firebase/auth'; // Import User type
-import { ToastAction } from '@/components/ui/toast'; // Import ToastAction
+import type { User } from 'firebase/auth';
+import { ToastAction } from '@/components/ui/toast';
 
 interface AuthFormProps {
   initialMode?: 'login' | 'signup';
 }
 
-export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
+export const AuthForm: FC<AuthFormProps> = ({ initialMode = 'login' }) => {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +29,7 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
   const { toast } = useToast();
   const router = useRouter();
 
-  const handleResendVerificationEmail = async () => {
+  const handleResendVerificationEmail = useCallback(async () => {
     if (!unverifiedUserForResend) return;
     setIsLoading(true);
     try {
@@ -37,24 +38,24 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
         title: 'Verification Email Resent',
         description: 'A new verification email has been sent. Please check your inbox.',
       });
-      setUnverifiedUserForResend(null); // Clear the stored user
+      setUnverifiedUserForResend(null); 
     } catch (error: any) {
       toast({ title: 'Error Resending Email', description: error.message, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [unverifiedUserForResend, toast]);
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
-    setUnverifiedUserForResend(null); // Clear previous unverified user state
+    setUnverifiedUserForResend(null);
 
     try {
       if (mode === 'login') {
-        const user = await signInWithEmail(email, password); // Returns User object
+        const user = await signInWithEmail(email, password); 
         if (user && !user.emailVerified) {
-          setUnverifiedUserForResend(user); // Store user for potential resend
+          setUnverifiedUserForResend(user); 
           toast({
             title: 'Email Not Verified',
             description: 'Please verify your email address before signing in. Check your inbox (and spam folder) for the verification link.',
@@ -69,7 +70,7 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
               </ToastAction>
             ),
           });
-          await signOut(); // Sign them out
+          await signOut(); 
           setIsLoading(false);
           return;
         }
@@ -77,8 +78,8 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
         setTimeout(() => {
           router.push('/dashboard');
         }, 0);
-      } else { // signup mode
-        await signUpWithEmail(name, email, password); // This now signs user out and sends verification
+      } else { 
+        await signUpWithEmail(name, email, password); 
         toast({
           title: 'Signup Successful! Please Verify Your Email',
           description: `A verification email has been sent to ${email}. Please check your inbox (and spam folder) and click the verification link before signing in.`,
@@ -112,9 +113,9 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [mode, email, password, name, toast, router, handleResendVerificationEmail]);
 
-  const handleOAuth = async (provider: 'google') => {
+  const handleOAuth = useCallback(async (provider: 'google') => {
     setIsLoading(true);
     try {
       await signInWithGoogle();
@@ -139,7 +140,7 @@ export function AuthForm({ initialMode = 'login' }: AuthFormProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast, router]);
 
 
   return (

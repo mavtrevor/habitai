@@ -1,28 +1,30 @@
+
 'use client';
 
-import { useState, FormEvent } from 'react';
+import type { FC } from 'react';
+import React, { useState, FormEvent, useCallback } from 'react';
 import type { CommunityPost } from '@/types';
 import { PostCard } from './post-card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { mockUser, mockPosts as initialMockPosts } from '@/lib/mock-data';
-import { addCommunityPost as mockAddCommunityPost } from '@/lib/firebase'; // Mocked function
-import { Paperclip, Send, Image as ImageIcon } from 'lucide-react';
+import { mockUser } from '@/lib/mock-data'; 
+import { addCommunityPost as mockAddCommunityPost } from '@/lib/firebase'; 
+import { Paperclip, Send, Image as ImageIcon, Users2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface CommunityFeedProps {
   initialPosts: CommunityPost[];
 }
 
-export function CommunityFeed({ initialPosts }: CommunityFeedProps) {
+export const CommunityFeed: FC<CommunityFeedProps> = ({ initialPosts }) => {
   const [posts, setPosts] = useState<CommunityPost[]>(initialPosts);
   const [newPostContent, setNewPostContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const currentUser = mockUser; // Use mock user for avatar
+  const currentUser = mockUser; 
 
-  const handleCreatePost = async (event: FormEvent) => {
+  const handleCreatePost = useCallback(async (event: FormEvent) => {
     event.preventDefault();
     if (!newPostContent.trim()) return;
 
@@ -32,7 +34,7 @@ export function CommunityFeed({ initialPosts }: CommunityFeedProps) {
         userId: currentUser.id,
         content: newPostContent,
       });
-      setPosts([createdPost, ...posts]);
+      setPosts(prevPosts => [createdPost, ...prevPosts]);
       setNewPostContent('');
       toast({ title: "Post Created!", description: "Your post is now live on the feed." });
     } catch (error) {
@@ -40,11 +42,10 @@ export function CommunityFeed({ initialPosts }: CommunityFeedProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [newPostContent, currentUser.id, toast]);
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      {/* Create Post Form */}
       <form onSubmit={handleCreatePost} className="bg-card p-4 rounded-lg shadow-md space-y-3">
         <div className="flex items-start space-x-3">
           <Avatar className="h-10 w-10 mt-1">
@@ -76,7 +77,6 @@ export function CommunityFeed({ initialPosts }: CommunityFeedProps) {
         </div>
       </form>
 
-      {/* Posts List */}
       {posts.map((post) => (
         <PostCard key={post.id} post={post} currentUserId={currentUser.id} />
       ))}
@@ -89,7 +89,3 @@ export function CommunityFeed({ initialPosts }: CommunityFeedProps) {
     </div>
   );
 }
-
-// Dummy Users2 icon if not imported elsewhere in context
-const Users2 = ({className}: {className?:string}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 19a6 6 0 0 0-12 0"/><circle cx="8" cy="9" r="4"/><path d="M22 19a6 6 0 0 0-6-6 4 4 0 1 0 0-8"/></svg>;
-

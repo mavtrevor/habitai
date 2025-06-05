@@ -1,31 +1,33 @@
 
 'use client';
 
+import type { FC } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { Habit } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CheckCircle2, TrendingUp, Zap, Edit3, ListChecks } from 'lucide-react'; // Added ListChecks
-import * as LucideIcons from 'lucide-react'; // Import all icons
+import { CheckCircle2, TrendingUp, Zap, Edit3, ListChecks } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 // import { updateHabitProgress } from '@/lib/firebase'; // Mocked
-import { useState } from 'react';
 
 interface HabitProgressCardProps {
   habit: Habit;
 }
 
-const IconComponent = ({ name, ...props }: { name?: string } & LucideIcons.LucideProps) => {
+const IconComponent: FC<{ name?: string } & LucideIcons.LucideProps> = React.memo(({ name, ...props }) => {
   if (!name || !(name in LucideIcons)) {
     return <ListChecks {...props} />; // Default icon
   }
   const Icon = LucideIcons[name as keyof typeof LucideIcons] as LucideIcons.LucideIcon;
   return <Icon {...props} />;
-};
+});
+IconComponent.displayName = 'IconComponent';
 
 
-export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProps) {
+const HabitProgressCardComponent: FC<HabitProgressCardProps> = ({ habit: initialHabit }) => {
   const [habit, setHabit] = useState(initialHabit);
   const { toast } = useToast();
 
@@ -35,7 +37,7 @@ export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProp
     ? (habit.progress.filter(p => p.completed).length / habit.progress.length) * 100
     : 0;
 
-  const handleMarkAsDone = async () => {
+  const handleMarkAsDone = useCallback(async () => {
     // const todayISO = new Date().toISOString();
     // try {
     //   const updatedHabit = await updateHabitProgress(habit.id, todayISO, true);
@@ -46,17 +48,19 @@ export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProp
     // }
     // Mock update
     const todayISO = new Date().toISOString();
-    const updatedHabit = { ...habit };
-    const todayProgressIndex = updatedHabit.progress.findIndex(p => p.date.startsWith(todayISO.slice(0,10)));
-    if (todayProgressIndex > -1) {
-        updatedHabit.progress[todayProgressIndex].completed = true;
-    } else {
-        updatedHabit.progress.push({date: todayISO, completed: true});
-    }
-    updatedHabit.streak = (updatedHabit.streak || 0) + 1;
-    setHabit(updatedHabit);
-    toast({ title: "Habit Updated!", description: `${habit.title} marked as completed for today.`});
-  };
+    setHabit(currentHabit => {
+      const updatedHabit = { ...currentHabit };
+      const todayProgressIndex = updatedHabit.progress.findIndex(p => p.date.startsWith(todayISO.slice(0,10)));
+      if (todayProgressIndex > -1) {
+          updatedHabit.progress[todayProgressIndex].completed = true;
+      } else {
+          updatedHabit.progress.push({date: todayISO, completed: true});
+      }
+      updatedHabit.streak = (updatedHabit.streak || 0) + 1;
+      return updatedHabit;
+    });
+    toast({ title: "Habit Updated!", description: `${initialHabit.title} marked as completed for today.`});
+  }, [toast, initialHabit.title]);
 
 
   return (
@@ -109,3 +113,6 @@ export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProp
     </Card>
   );
 }
+
+export const HabitProgressCard = React.memo(HabitProgressCardComponent);
+HabitProgressCard.displayName = 'HabitProgressCard';

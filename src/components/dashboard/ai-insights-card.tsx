@@ -1,23 +1,25 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import type { FC } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lightbulb, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateAIInsights } from '@/lib/firebase'; // Using mocked version from lib/firebase which calls mock-data
+import { generateAIInsights } from '@/lib/firebase';
 import type { GenerateAIInsightsInput } from '@/ai/flows/generate-ai-insights';
 
 interface AIInsightsCardProps {
-  habitsData: string; // Stringified JSON of habits data
+  habitsData: string; 
 }
 
-export function AIInsightsCard({ habitsData }: AIInsightsCardProps) {
+const AIInsightsCardComponent: FC<AIInsightsCardProps> = ({ habitsData }) => {
   const [insights, setInsights] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchInsights = async () => {
+  const fetchInsights = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -30,12 +32,11 @@ export function AIInsightsCard({ habitsData }: AIInsightsCardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [habitsData]);
 
   useEffect(() => {
     fetchInsights();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [habitsData]);
+  }, [fetchInsights]);
 
   return (
     <Card className="shadow-md">
@@ -67,3 +68,5 @@ export function AIInsightsCard({ habitsData }: AIInsightsCardProps) {
     </Card>
   );
 }
+export const AIInsightsCard = React.memo(AIInsightsCardComponent);
+AIInsightsCard.displayName = 'AIInsightsCard';

@@ -1,14 +1,18 @@
+
+'use client';
+import type { FC } from 'react';
+import React from 'react';
 import type { Habit } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Flame, TrendingUp } from 'lucide-react';
+import { Flame } from 'lucide-react';
 
 interface StreaksOverviewProps {
   habits: Habit[];
 }
 
-export function StreaksOverview({ habits }: StreaksOverviewProps) {
-  const longestStreak = Math.max(0, ...habits.map(h => h.streak));
-  const activeStreaks = habits.filter(h => h.streak > 0).length;
+const StreaksOverviewComponent: FC<StreaksOverviewProps> = ({ habits }) => {
+  const longestStreak = React.useMemo(() => Math.max(0, ...habits.map(h => h.streak)), [habits]);
+  const activeStreaks = React.useMemo(() => habits.filter(h => h.streak > 0).length, [habits]);
 
   return (
     <Card className="shadow-md">
@@ -36,3 +40,6 @@ export function StreaksOverview({ habits }: StreaksOverviewProps) {
     </Card>
   );
 }
+
+export const StreaksOverview = React.memo(StreaksOverviewComponent);
+StreaksOverview.displayName = 'StreaksOverview';

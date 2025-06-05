@@ -1,3 +1,7 @@
+
+'use client';
+import type { FC } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { Zap } from 'lucide-react'; // Example icon
 
@@ -7,7 +11,7 @@ interface LogoProps {
   showText?: boolean;
 }
 
-export function Logo({ size = 'medium', className, showText = true }: LogoProps) {
+const LogoComponent: FC<LogoProps> = ({ size = 'medium', className, showText = true }) => {
   const sizeClasses = {
     small: 'h-8 w-8',
     medium: 'h-10 w-10',
@@ -26,3 +30,6 @@ export function Logo({ size = 'medium', className, showText = true }: LogoProps)
     </Link>
   );
 }
+
+export const Logo = React.memo(LogoComponent);
+Logo.displayName = 'Logo';

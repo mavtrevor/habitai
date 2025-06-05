@@ -1,5 +1,8 @@
+
 'use client';
 
+import type { FC } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { CommunityPost } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,8 +11,7 @@ import { ThumbsUp, MessageSquare, MoreHorizontal, Share2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { useState } from 'react';
-import { likePost as mockLikePost } from '@/lib/firebase';
+// import { likePost as mockLikePost } from '@/lib/firebase'; // Mocked
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,12 +25,12 @@ interface PostCardProps {
   currentUserId: string;
 }
 
-export function PostCard({ post: initialPost, currentUserId }: PostCardProps) {
+const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId }) => {
   const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(post.likes.includes(currentUserId));
   const [likeCount, setLikeCount] = useState(post.likes.length);
 
-  const handleLike = async () => {
+  const handleLike = useCallback(async () => {
     // const updatedPost = await mockLikePost(post.id, currentUserId); // Mock
     // if (updatedPost) {
     //   setPost(updatedPost);
@@ -36,9 +38,9 @@ export function PostCard({ post: initialPost, currentUserId }: PostCardProps) {
     //   setLikeCount(updatedPost.likes.length);
     // }
     // Mock behavior:
-    setIsLiked(!isLiked);
+    setIsLiked(prevIsLiked => !prevIsLiked);
     setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-  };
+  }, [isLiked, currentUserId, post.id]); // Ensure stable references if mockLikePost was real and used these
   
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
@@ -49,7 +51,7 @@ export function PostCard({ post: initialPost, currentUserId }: PostCardProps) {
           <div className="flex items-center space-x-3">
             <Link href={`/profile/${post.userId}`}>
               <Avatar className="h-10 w-10">
-                <AvatarImage src={post.userAvatarUrl} alt={post.userName} data-ai-hint="person avatar" />
+                <AvatarImage src={post.userAvatarUrl} alt={post.userName} data-ai-hint="person avatar"/>
                 <AvatarFallback>{post.userName.charAt(0)}</AvatarFallback>
               </Avatar>
             </Link>
@@ -113,3 +115,5 @@ export function PostCard({ post: initialPost, currentUserId }: PostCardProps) {
     </Card>
   );
 }
+export const PostCard = React.memo(PostCardComponent);
+PostCard.displayName = 'PostCard';
