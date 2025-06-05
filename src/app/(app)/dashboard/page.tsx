@@ -1,4 +1,7 @@
 
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
@@ -7,36 +10,92 @@ import { BadgesOverview } from '@/components/dashboard/badges-overview';
 import { getUserHabits, getUserBadges, getCurrentUser } from '@/lib/firebase';
 import type { Habit, Badge } from '@/types';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { WelcomeBanner } from '@/components/dashboard/welcome-banner';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 
-// Data fetching at the page level (Server Component)
-const getDashboardData = async () => {
-  const currentUser = await getCurrentUser(); // Needed for fetching user-specific data
-  if (!currentUser) {
-    return { habits: [], badges: [], userId: null, habitsDataString: "[]" };
+export default function DashboardPage() {
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [habitsDataString, setHabitsDataString] = useState<string>("[]");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        setError("User not authenticated. Please sign in.");
+        setUserId(null);
+        setHabits([]);
+        setBadges([]);
+        setHabitsDataString("[]");
+        // Consider redirecting to /auth here if preferred
+        // import { useRouter } from 'next/navigation';
+        // const router = useRouter();
+        // router.push('/auth');
+        return;
+      }
+      setUserId(currentUser.id);
+
+      const fetchedHabits = await getUserHabits(currentUser.id);
+      const fetchedBadges = await getUserBadges(currentUser.id);
+
+      setHabits(fetchedHabits);
+      setBadges(fetchedBadges);
+      setHabitsDataString(JSON.stringify(fetchedHabits.map(h => ({ title: h.title, progress: h.progress.length, streak: h.streak }))));
+
+    } catch (err: any) {
+      console.error("Error fetching dashboard data:", err);
+      setError(err.message || "Failed to load dashboard data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Calculate weeklyProgress based on fetched habits
+  const weeklyProgress = React.useMemo(() => {
+    // Placeholder: Calculate actual weekly progress based on habit.progress dates
+    // This logic might need to be more sophisticated based on actual progress data
+    return [
+      habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
+      75,
+      70,
+      85
+    ];
+  }, [habits]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  const habits = await getUserHabits(currentUser.id);
-  const badges = await getUserBadges(currentUser.id); // Fetches earned badges
+  if (error) {
+    return (
+      <div className="text-center py-10 text-destructive">
+        <p>{error}</p>
+        {userId === null && ( // Only show sign-in if error is due to not being authenticated
+             <Button asChild className="mt-4">
+               <Link href="/auth">Sign In</Link>
+            </Button>
+        )}
+      </div>
+    );
+  }
   
-  return {
-    habits: habits,
-    badges: badges,
-    userId: currentUser.id,
-    habitsDataString: JSON.stringify(habits.map(h => ({title: h.title, progress: h.progress.length, streak: h.streak}))) // Minimized data for AI
-  };
-};
-
-export default async function DashboardPage() {
-  const { habits, badges, userId, habitsDataString } = await getDashboardData();
-
-  if (!userId) {
-    // Handle case where user is not authenticated, though AppLayout should ideally protect this route
-    // For now, redirect or show a message. This might be better handled in middleware or layout.
+  if (!userId && !isLoading && !error) { // Should be caught by error state, but as a fallback
     return (
       <div className="text-center py-10">
         <p>Please sign in to view your dashboard.</p>
@@ -46,16 +105,6 @@ export default async function DashboardPage() {
       </div>
     );
   }
-  
-  // Example data for weekly progress chart (last 4 weeks)
-  // This should be calculated based on actual habit progress over time from Firestore
-  const weeklyProgress = [
-    // Placeholder: Calculate actual weekly progress based on habit.progress dates
-    habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
-    75, 
-    70, 
-    85
-  ];
 
 
   return (
@@ -64,8 +113,8 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <StreaksOverview habits={habits} />
-        <BadgesOverview badges={badges} /> {/* Pass fetched earned badges */}
-        <AIInsightsCard habitsData={habitsDataString} />
+        <BadgesOverview badges={badges} />
+        {userId && <AIInsightsCard habitsData={habitsDataString} />}
       </div>
       
       <div className="grid gap-6 lg:grid-cols-5">
