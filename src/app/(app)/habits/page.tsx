@@ -1,8 +1,9 @@
+
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { mockHabits } from '@/lib/mock-data';
 import type { Habit } from '@/types';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ListFilter } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react'; // Added ListChecks
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -14,7 +15,7 @@ import {
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+
 
 // Mock data fetching for all habits
 const getAllHabits = async (userId: string): Promise<Habit[]> => {
@@ -28,16 +29,16 @@ export default async function HabitsListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold font-headline">My Habits</h1>
-        <div className="flex gap-2 items-center w-full sm:w-auto">
+        <div className="flex flex-col xs:flex-row gap-2 items-stretch xs:items-center w-full sm:w-auto">
           <div className="relative flex-grow sm:flex-grow-0">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search habits..." className="pl-8 w-full sm:w-auto" />
+            <Input placeholder="Search habits..." className="pl-8 w-full" />
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full xs:w-auto justify-start xs:justify-center">
                 <ListFilter className="mr-2 h-4 w-4" /> Filter
               </Button>
             </DropdownMenuTrigger>
@@ -55,7 +56,7 @@ export default async function HabitsListPage() {
               <DropdownMenuItem>Streak</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button asChild>
+          <Button asChild className="w-full xs:w-auto">
             <Link href="/habits/create">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Habit
             </Link>

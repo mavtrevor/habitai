@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Habit } from '@/types';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CheckCircle2, TrendingUp, Zap, Edit3 } from 'lucide-react';
+import { CheckCircle2, TrendingUp, Zap, Edit3, ListChecks } from 'lucide-react'; // Added ListChecks
 import * as LucideIcons from 'lucide-react'; // Import all icons
 import { useToast } from '@/hooks/use-toast';
 // import { updateHabitProgress } from '@/lib/firebase'; // Mocked
@@ -88,18 +89,18 @@ export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProp
         <div className="text-sm text-muted-foreground flex items-center">
             <TrendingUp className="h-4 w-4 mr-1 text-primary" /> Streak: {habit.streak} {habit.frequency === 'daily' ? 'days' : 'times'}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none">
             <Link href={`/habits/edit/${habit.id}`}> {/* Assuming an edit page */}
-              <Edit3 className="h-3 w-3 mr-1 sm:mr-0 md:mr-1" /> <span className="hidden sm:inline md:hidden lg:inline">Edit</span>
+              <Edit3 className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Edit</span>
             </Link>
           </Button>
           {!completedToday ? (
-            <Button size="sm" onClick={handleMarkAsDone} className="bg-accent text-accent-foreground hover:bg-accent/90">
+            <Button size="sm" onClick={handleMarkAsDone} className="bg-accent text-accent-foreground hover:bg-accent/90 flex-1 sm:flex-none">
               <CheckCircle2 className="h-4 w-4 mr-1" /> Mark as Done
             </Button>
           ) : (
-             <Button size="sm" variant="ghost" disabled className="text-green-600">
+             <Button size="sm" variant="ghost" disabled className="text-green-600 flex-1 sm:flex-none">
               Completed!
             </Button>
           )}

@@ -1,3 +1,4 @@
+
 import { CommunityFeed } from "@/components/community/community-feed";
 import { ChallengeCard } from "@/components/community/challenge-card";
 import { mockPosts, mockChallenges } from "@/lib/mock-data";
@@ -19,13 +20,13 @@ export default async function CommunityPage() {
       </div>
 
       <Tabs defaultValue="feed" className="w-full">
-        <div className="flex justify-between items-center mb-4">
-          <TabsList className="bg-card p-1 rounded-lg shadow">
-            <TabsTrigger value="feed" className="px-4 py-2 text-sm">Activity Feed</TabsTrigger>
-            <TabsTrigger value="challenges" className="px-4 py-2 text-sm">Challenges</TabsTrigger>
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+          <TabsList className="bg-card p-1 rounded-lg shadow w-full sm:w-auto">
+            <TabsTrigger value="feed" className="px-4 py-2 text-sm flex-1 sm:flex-none">Activity Feed</TabsTrigger>
+            <TabsTrigger value="challenges" className="px-4 py-2 text-sm flex-1 sm:flex-none">Challenges</TabsTrigger>
           </TabsList>
           {/* Could be context-dependent based on tab */}
-           <Button asChild variant="outline" className="text-primary border-primary hover:bg-primary/10 hover:text-primary">
+           <Button asChild variant="outline" className="text-primary border-primary hover:bg-primary/10 hover:text-primary w-full sm:w-auto">
             <Link href="/community/create-post"> {/* Or /challenges/create */}
               <PlusCircle className="mr-2 h-4 w-4" /> Create Post
             </Link>
@@ -56,4 +57,3 @@ export default async function CommunityPage() {
 
 // Dummy icon for Trophy if not imported
 const Trophy = ({className}: {className?:string}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
-
