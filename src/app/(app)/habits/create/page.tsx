@@ -1,3 +1,6 @@
+
+'use client'; // Make this a client component
+
 import { HabitCreatorForm } from '@/components/habits/habit-creator-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lightbulb } from 'lucide-react';
