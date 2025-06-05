@@ -90,7 +90,7 @@ export function HabitProgressCard({ habit: initialHabit }: HabitProgressCardProp
             <TrendingUp className="h-4 w-4 mr-1 text-primary" /> Streak: {habit.streak} {habit.frequency === 'daily' ? 'days' : 'times'}
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none">
+          <Button variant="outline" size="sm" asChild className="flex-grow-0 sm:flex-none">
             <Link href={`/habits/edit/${habit.id}`}> {/* Assuming an edit page */}
               <Edit3 className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Edit</span>
             </Link>
