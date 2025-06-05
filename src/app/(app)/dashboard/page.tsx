@@ -1,9 +1,10 @@
+
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
 import { AIInsightsCard } from '@/components/dashboard/ai-insights-card';
 import { BadgesOverview } from '@/components/dashboard/badges-overview';
-import { mockHabits, mockBadges, mockUser } from '@/lib/mock-data';
+import { mockHabits, mockBadges } from '@/lib/mock-data';
 import type { Habit, Badge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -16,14 +17,13 @@ import { UpcomingTasks } from '@/components/dashboard/upcoming-tasks';
 const getDashboardData = async () => {
   // In a real app, fetch this data
   return {
-    user: mockUser,
     habits: mockHabits,
     badges: mockBadges.filter(b => b.earnedAt), // Only show earned badges
   };
 };
 
 export default async function DashboardPage() {
-  const { user, habits, badges } = await getDashboardData();
+  const { habits, badges } = await getDashboardData();
 
   const habitProgressData = habits.map(habit => ({
     name: habit.title,
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <WelcomeBanner userName={user.name} />
+      <WelcomeBanner />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <StreaksOverview habits={habits} />
