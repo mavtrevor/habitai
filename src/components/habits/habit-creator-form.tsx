@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { suggestHabitMicroTask, addHabit as mockAddHabit } from '@/lib/firebase';
 import type { SuggestHabitMicroTaskInput } from '@/ai/flows/suggest-habit-micro-task';
 import type { Habit } from '@/types';
-import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Run, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react'; // Curated icons
+import { Loader2, Wand2, Zap, PlusCircle, ListChecks, Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch } from 'lucide-react'; // Curated icons, removed Run
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import type { ColorResult } from 'react-color';
 import dynamic from 'next/dynamic';
@@ -27,7 +27,7 @@ const TwitterPicker = dynamic(() => import('react-color').then(mod => mod.Twitte
 
 // Curated list of icons and a map for dynamic rendering
 const curatedIcons: Record<string, React.FC<LucideProps>> = {
-  Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, ListChecks, Moon, Mountain, Music, Pencil, Plane, Run, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Zap
+  Activity, Award, Bike, BookOpen, CalendarCheck2, CheckCircle2, ClipboardList, Coffee, Dumbbell, Feather, Flame, Heart, Home, Lightbulb, ListChecks, Moon, Mountain, Music, Pencil, Plane, Smile, Sparkles, Star, Sun, Target, Trophy, Utensils, Watch, Zap
 };
 
 const habitIconNames = Object.keys(curatedIcons);
@@ -271,3 +271,5 @@ export const HabitCreatorForm: FC = () => {
   );
 }
 
+
+    
