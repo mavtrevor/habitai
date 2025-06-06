@@ -17,7 +17,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
-  deleteDoc,
+  deleteDoc as firebaseDeleteDoc, // Renamed to avoid conflict
   query,
   where,
   orderBy,
@@ -147,7 +147,6 @@ export const signOut = async (): Promise<void> => {
 };
 
 export const sendEmailVerification = async (user: FirebaseAuthUser): Promise<void> => {
-  // const authInstance = getAuth(); // sendEmailVerification is directly from 'firebase/auth' and uses the user object
   if (!user) throw new Error("User object required for sending verification email.");
   await firebaseSendEmailVerification(user);
 };
@@ -304,6 +303,14 @@ export const likePost = async (postId: string, userIdToToggle: string): Promise<
   return { ...postData, id: postId, likes: newLikesArray };
 };
 
+export const deletePost = async (postId: string): Promise<void> => {
+    const firestoreInstance = getFirestore();
+    if (!firestoreInstance) throw new Error("Firestore not initialized");
+    const postRef = doc(firestoreInstance, 'posts', postId);
+    await firebaseDeleteDoc(postRef);
+};
+
+
 // --- Challenges ---
 export const getChallenges = async (): Promise<Challenge[]> => {
   const firestoreInstance = getFirestore();
@@ -312,6 +319,15 @@ export const getChallenges = async (): Promise<Challenge[]> => {
   const q = query(challengesFbCollection, orderBy('startDate', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as Challenge));
+};
+
+export const getChallengeById = async (challengeId: string): Promise<Challenge | undefined> => {
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  if (!challengeId) return undefined;
+  const challengeRef = doc(firestoreInstance, 'challenges', challengeId);
+  const snapshot = await getDoc(challengeRef);
+  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as Challenge : undefined;
 };
 
 export const addChallenge = async (challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
@@ -425,7 +441,7 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
     if (snapshot.empty) return true;
 
     const batch = writeBatch(firestoreInstance);
-    snapshot.docs.forEach(docData => { // Changed doc to docData to avoid conflict
+    snapshot.docs.forEach(docData => {
         batch.update(docData.ref, { read: true });
     });
 
