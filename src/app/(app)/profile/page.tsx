@@ -1,12 +1,14 @@
 
-'use client'; // Needs to be client for Tabs and data fetching
+'use client'; 
 
 import React, { useEffect, useState } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCurrentUser, getUserBadges, getChallenges as fetchChallenges, getUserHabits } from "@/lib/firebase";
+import { getUserProfile, getUserBadges, getChallenges as fetchChallenges, getUserHabits } from "@/lib/firebase";
 import type { UserProfile as UserProfileType, Badge as BadgeType, Challenge as ChallengeType, Habit } from '@/types';
 import { UserSettingsForm } from "@/components/profile/user-settings-form";
 import { BadgesList } from "@/components/profile/badges-list";
@@ -17,38 +19,69 @@ import Link from "next/link";
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<UserProfileType | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
   const [badges, setBadges] = useState<BadgeType[]>([]);
   const [joinedChallenges, setJoinedChallenges] = useState<ChallengeType[]>([]);
   const [userHabits, setUserHabits] = useState<Habit[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true); // For profile data, badges, etc.
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        // Handle not logged in - redirect or show message
-        setIsLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentFirebaseUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!currentFirebaseUser) {
+        setUserProfile(null);
+        setBadges([]);
+        setJoinedChallenges([]);
+        setUserHabits([]);
+        setIsDataLoading(false);
         return;
       }
-      setUser(currentUser);
 
-      const [fetchedBadges, allChallenges, fetchedHabits] = await Promise.all([
-        getUserBadges(currentUser.id),
-        fetchChallenges(),
-        getUserHabits(currentUser.id)
-      ]);
-      
-      setBadges(fetchedBadges);
-      setUserHabits(fetchedHabits);
-      // Filter challenges client-side for now, or adapt getChallenges to accept userId
-      setJoinedChallenges(allChallenges.filter(c => c.participantIds.includes(currentUser.id)));
+      setIsDataLoading(true);
+      try {
+        const fetchedUserProfile = await getUserProfile(currentFirebaseUser.uid);
+        setUserProfile(fetchedUserProfile); // This can be null if profile doesn't exist
 
-      setIsLoading(false);
+        if (fetchedUserProfile) { // Only fetch related data if profile exists
+          const [fetchedBadges, allChallenges, fetchedHabits] = await Promise.all([
+            getUserBadges(currentFirebaseUser.uid),
+            fetchChallenges(), // Assuming getChallenges is general and not user-specific at fetch time
+            getUserHabits(currentFirebaseUser.uid)
+          ]);
+          
+          setBadges(fetchedBadges);
+          setUserHabits(fetchedHabits);
+          setJoinedChallenges(allChallenges.filter(c => c.participantIds.includes(currentFirebaseUser.uid)));
+        } else {
+            // Handle case where user exists in Auth but not in Firestore profiles
+            setBadges([]);
+            setJoinedChallenges([]);
+            setUserHabits([]);
+        }
+
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+        setUserProfile(null); // Reset on error
+      } finally {
+        setIsDataLoading(false);
+      }
     };
-    fetchData();
-  }, []);
+    
+    // Only fetch data if auth state is determined (i.e., not undefined)
+    if (currentFirebaseUser !== undefined) {
+      fetchProfileData();
+    }
+  }, [currentFirebaseUser]);
 
   const getInitials = (name: string | undefined) => {
     if (!name) return 'U';
@@ -57,8 +90,28 @@ export default function ProfilePage() {
     return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
   }
 
-  if (isLoading) {
+  if (isAuthLoading || currentFirebaseUser === undefined) {
     return (
+      <div className="flex flex-1 items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!currentFirebaseUser && !isAuthLoading) {
+    return (
+      <div className="text-center py-10">
+        <p>Please sign in to view your profile.</p>
+        <Button asChild className="mt-4">
+          <Link href="/auth">Sign In</Link>
+        </Button>
+      </div>
+    );
+  }
+  
+  // User is authenticated, now check data loading status
+  if (isDataLoading) {
+     return (
       <div className="space-y-8">
         <Card className="shadow-lg overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-primary via-primary/90 to-accent p-8 text-primary-foreground">
@@ -74,22 +127,23 @@ export default function ProfilePage() {
         </Card>
         <div className="text-center py-10">
             <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-            <p className="mt-4 text-muted-foreground">Loading profile...</p>
+            <p className="mt-4 text-muted-foreground">Loading profile data...</p>
         </div>
       </div>
     );
   }
-
-  if (!user) {
-    return (
+  
+  if (!userProfile && !isDataLoading) {
+     return (
       <div className="text-center py-10">
-        <p>Please sign in to view your profile.</p>
+        <p className="text-destructive">Could not load user profile. It might not exist or there was an error.</p>
         <Button asChild className="mt-4">
-          <Link href="/auth">Sign In</Link>
+          <Link href="/dashboard">Go to Dashboard</Link>
         </Button>
       </div>
     );
   }
+
 
   return (
     <div className="space-y-8">
@@ -97,19 +151,14 @@ export default function ProfilePage() {
         <CardHeader className="bg-gradient-to-r from-primary via-primary/90 to-accent p-8 text-primary-foreground">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <Avatar className="h-24 w-24 border-4 border-background shadow-md">
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person portrait" />
-              <AvatarFallback className="text-3xl bg-background text-primary">{getInitials(user.name)}</AvatarFallback>
+              <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} data-ai-hint="person portrait" />
+              <AvatarFallback className="text-3xl bg-background text-primary">{getInitials(userProfile.name)}</AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="text-3xl font-bold font-headline">{user.name}</h1>
-              <p className="opacity-90">{user.email}</p>
-              <p className="text-xs opacity-80 mt-1">Member since {new Date(user.createdAt).toLocaleDateString()}</p>
+              <h1 className="text-3xl font-bold font-headline">{userProfile.name}</h1>
+              <p className="opacity-90">{userProfile.email}</p>
+              <p className="text-xs opacity-80 mt-1">Member since {new Date(userProfile.createdAt).toLocaleDateString()}</p>
             </div>
-            {/* <Button variant="outline" size="sm" asChild className="ml-auto text-foreground bg-background/80 hover:bg-background">
-              <Link href="/profile/edit"> // Edit profile form is part of settings for now
-                <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
-              </Link>
-            </Button> */}
           </div>
         </CardHeader>
       </Card>
@@ -152,7 +201,7 @@ export default function ProfilePage() {
               <CardDescription>Manage your account details and preferences.</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserSettingsForm user={user} />
+              <UserSettingsForm user={userProfile} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -164,7 +213,7 @@ export default function ProfilePage() {
                 <CardDescription>Celebrate your achievements and milestones.</CardDescription>
             </CardHeader>
             <CardContent>
-                <BadgesList badgesData={badges} /> {/* Pass fetched & filtered badges */}
+                <BadgesList badgesData={badges} />
             </CardContent>
           </Card>
         </TabsContent>

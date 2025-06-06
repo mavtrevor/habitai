@@ -2,12 +2,14 @@
 'use client'; 
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
-import { getUserHabits, getCurrentUser } from '@/lib/firebase';
+import { getUserHabits } from '@/lib/firebase';
 import type { Habit } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, ListFilter, Search, ListChecks } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, ListChecks, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -21,35 +23,33 @@ import {
 
 export default function HabitsListPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
+  
+  const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   // TODO: Implement filter states
   // const [filterStatus, setFilterStatus] = useState<string | null>(null); 
   // const [sortBy, setSortBy] = useState<string>('lastUpdated');
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const currentUser = await getCurrentUser();
-      if (currentUser) {
-        setUserId(currentUser.id);
-      } else {
-        // Handle user not logged in, e.g., redirect or show message
-        setIsLoading(false); 
-      }
-    };
-    fetchUser();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentFirebaseUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const loadHabits = useCallback(async () => {
-    if (!userId) {
-      setIsLoading(false);
+    if (!currentFirebaseUser?.uid) {
+      setIsDataLoading(false);
       setHabits([]);
       return;
     }
-    setIsLoading(true);
+    setIsDataLoading(true);
     try {
-      let userHabits = await getUserHabits(userId);
+      let userHabits = await getUserHabits(currentFirebaseUser.uid);
 
       if (searchTerm) {
         userHabits = userHabits.filter(habit =>
@@ -64,42 +64,54 @@ export default function HabitsListPage() {
       //   userHabits.sort((a, b) => new Date(b.lastUpdatedAt || b.createdAt).getTime() - new Date(a.lastUpdatedAt || a.createdAt).getTime());
       // }
 
-
       setHabits(userHabits);
     } catch (error) {
       console.error("Failed to load habits:", error);
       setHabits([]);
     } finally {
-      setIsLoading(false);
+      setIsDataLoading(false);
     }
-  }, [userId, searchTerm /*, filterStatus, sortBy */]);
+  }, [currentFirebaseUser?.uid, searchTerm /*, filterStatus, sortBy */]);
 
   useEffect(() => {
-    if (userId) { // Only load habits if userId is available
+    // Only load habits if auth state is determined and user exists
+    if (currentFirebaseUser) { 
       loadHabits();
+    } else if (!isAuthLoading && !currentFirebaseUser) {
+      // User is explicitly logged out, clear habits
+      setHabits([]);
+      setIsDataLoading(false);
     }
-  }, [loadHabits, userId]);
+  }, [loadHabits, currentFirebaseUser, isAuthLoading]);
 
-  if (isLoading) {
+  if (isAuthLoading || currentFirebaseUser === undefined) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-3xl font-bold font-headline">My Habits</h1>
-        </div>
-        <div className="text-center py-12">
-          <ListChecks className="mx-auto h-12 w-12 text-muted-foreground animate-pulse mb-4" />
-          <p className="text-muted-foreground">Loading your habits...</p>
-        </div>
+      <div className="flex flex-1 items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
   
-  if (!userId && !isLoading) {
+  if (!currentFirebaseUser && !isAuthLoading) {
      return (
       <div className="space-y-6 text-center">
         <h1 className="text-3xl font-bold font-headline">My Habits</h1>
         <p className="text-muted-foreground">Please sign in to manage your habits.</p>
          <Button asChild><Link href="/auth">Sign In</Link></Button>
+      </div>
+    );
+  }
+
+  if (isDataLoading && currentFirebaseUser) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-3xl font-bold font-headline">My Habits</h1>
+        </div>
+        <div className="flex flex-1 items-center justify-center h-full">
+            <Loader2 className="mx-auto h-12 w-12 text-muted-foreground animate-spin mb-4" />
+            <p className="text-muted-foreground">Loading your habits...</p>
+        </div>
       </div>
     );
   }

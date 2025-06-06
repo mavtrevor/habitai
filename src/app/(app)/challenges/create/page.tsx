@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,11 +16,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { addChallenge, getCurrentUser } from '@/lib/firebase';
+import { addChallenge } from '@/lib/firebase';
 import type { Challenge } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { CalendarIcon, Loader2, PlusCircle, Trophy } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import Link from 'next/link';
 
 const challengeCategories = ["Fitness", "Wellness", "Learning", "Productivity", "Creative", "Social", "Environment", "Other"];
@@ -41,9 +43,10 @@ type ChallengeFormValues = z.infer<typeof challengeFormSchema>;
 export default function CreateChallengePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Changed from isLoading to isSubmitting for clarity
+  
+  const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const { control, handleSubmit, register, formState: { errors }, reset } = useForm<ChallengeFormValues>({
     resolver: zodResolver(challengeFormSchema),
@@ -57,26 +60,26 @@ export default function CreateChallengePage() {
   });
 
   useEffect(() => {
-    const fetchUser = async () => {
-      setIsAuthLoading(true);
-      const user = await getCurrentUser();
-      if (user) {
-        setCurrentUserId(user.id);
-      } else {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentFirebaseUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthLoading && !currentFirebaseUser) {
         toast({ title: "Authentication Required", description: "You must be logged in to create a challenge.", variant: "destructive" });
         router.push('/auth');
-      }
-      setIsAuthLoading(false);
-    };
-    fetchUser();
-  }, [router, toast]);
+    }
+  }, [isAuthLoading, currentFirebaseUser, router, toast]);
 
   const onSubmit: SubmitHandler<ChallengeFormValues> = async (data) => {
-    if (!currentUserId) {
+    if (!currentFirebaseUser?.uid) { // Check currentFirebaseUser directly
         toast({ title: "Error", description: "User not identified. Cannot create challenge.", variant: "destructive" });
         return;
     }
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       const challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'> = {
         title: data.title,
@@ -87,24 +90,28 @@ export default function CreateChallengePage() {
         imageUrl: data.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(data.title)}`,
         dataAiHint: data.dataAiHint || data.category.toLowerCase(),
       };
-      await addChallenge(challengeData);
+      // addChallenge implicitly uses currentFirebaseUser.uid if it's designed that way in firebase.ts
+      await addChallenge(challengeData); 
       toast({ title: "Challenge Created!", description: `"${data.title}" is now live.` });
       reset();
       router.push('/challenges');
     } catch (error: any) {
       toast({ title: "Error Creating Challenge", description: error.message || "Could not create challenge.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
   
-  if (isAuthLoading) {
+  if (isAuthLoading || currentFirebaseUser === undefined) {
     return (
       <div className="flex flex-1 items-center justify-center h-full">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
+
+  // If auth is resolved and still no user, useEffect above would have redirected.
+  // This render path assumes user is authenticated or redirect is in progress.
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -122,13 +129,13 @@ export default function CreateChallengePage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
               <Label htmlFor="title">Challenge Title</Label>
-              <Input id="title" {...register("title")} disabled={isLoading} className="mt-1" />
+              <Input id="title" {...register("title")} disabled={isSubmitting} className="mt-1" />
               {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
             </div>
 
             <div>
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" {...register("description")} disabled={isLoading} className="mt-1" rows={4} />
+              <Textarea id="description" {...register("description")} disabled={isSubmitting} className="mt-1" rows={4} />
               {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
             </div>
 
@@ -144,7 +151,7 @@ export default function CreateChallengePage() {
                         <Button
                           variant={"outline"}
                           className={`w-full justify-start text-left font-normal mt-1 ${!field.value && "text-muted-foreground"}`}
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -156,7 +163,7 @@ export default function CreateChallengePage() {
                           selected={field.value}
                           onSelect={field.onChange}
                           initialFocus
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                         />
                       </PopoverContent>
                     </Popover>
@@ -176,7 +183,7 @@ export default function CreateChallengePage() {
                         <Button
                           variant={"outline"}
                           className={`w-full justify-start text-left font-normal mt-1 ${!field.value && "text-muted-foreground"}`}
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -188,7 +195,7 @@ export default function CreateChallengePage() {
                           selected={field.value}
                           onSelect={field.onChange}
                           initialFocus
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                         />
                       </PopoverContent>
                     </Popover>
@@ -204,7 +211,7 @@ export default function CreateChallengePage() {
                 name="category"
                 control={control}
                 render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                         <SelectTrigger id="category" className="mt-1">
                             <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
@@ -221,25 +228,25 @@ export default function CreateChallengePage() {
 
             <div>
               <Label htmlFor="imageUrl">Image URL (Optional)</Label>
-              <Input id="imageUrl" {...register("imageUrl")} placeholder="https://example.com/image.png" disabled={isLoading} className="mt-1" />
+              <Input id="imageUrl" {...register("imageUrl")} placeholder="https://example.com/image.png" disabled={isSubmitting} className="mt-1" />
               {errors.imageUrl && <p className="text-sm text-destructive mt-1">{errors.imageUrl.message}</p>}
               <p className="text-xs text-muted-foreground mt-1">If left blank, a placeholder will be generated.</p>
             </div>
              <div>
               <Label htmlFor="dataAiHint">Image AI Hint (Optional)</Label>
-              <Input id="dataAiHint" {...register("dataAiHint")} placeholder="e.g. 'fitness workout' or 'nature meditation'" disabled={isLoading} className="mt-1" />
+              <Input id="dataAiHint" {...register("dataAiHint")} placeholder="e.g. 'fitness workout' or 'nature meditation'" disabled={isSubmitting} className="mt-1" />
                <p className="text-xs text-muted-foreground mt-1">One or two keywords for AI image generation if a custom URL is not provided. Max 2 words.</p>
               {errors.dataAiHint && <p className="text-sm text-destructive mt-1">{errors.dataAiHint.message}</p>}
             </div>
 
 
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading} className="min-w-[150px]">
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                {isLoading ? "Creating..." : "Create Challenge"}
+              <Button type="submit" disabled={isSubmitting} className="min-w-[150px]">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {isSubmitting ? "Creating..." : "Create Challenge"}
               </Button>
             </div>
           </form>

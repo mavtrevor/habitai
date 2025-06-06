@@ -3,12 +3,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { HabitCreatorForm } from '@/components/habits/habit-creator-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getHabitById, getCurrentUser } from '@/lib/firebase';
+import { getHabitById } from '@/lib/firebase';
 import type { Habit } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, Edit3 } from 'lucide-react';
+import { AlertTriangle, Edit3, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -17,50 +19,73 @@ export default function EditHabitPage() {
   const router = useRouter();
   const habitId = typeof params.habitId === 'string' ? params.habitId : undefined;
   
-  const [habit, setHabit] = useState<Habit | null | undefined>(undefined); // undefined for loading, null for not found
-  const [isLoading, setIsLoading] = useState(true);
+  const [habit, setHabit] = useState<Habit | null | undefined>(undefined); 
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+
+  const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserAndHabit = async () => {
-      setIsLoading(true);
-      setError(null);
-      const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        setError("User not authenticated. Please sign in.");
-        setIsLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentFirebaseUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchHabitData = async () => {
+      if (!currentFirebaseUser) {
+        if (!isAuthLoading) { // Only set error if auth is resolved and no user
+            setError("User not authenticated. Please sign in.");
+            router.push('/auth'); 
+        }
         setHabit(null);
-        router.push('/auth'); // Redirect if not authenticated
+        setIsDataLoading(false);
         return;
       }
-      setUserId(currentUser.id);
 
-      if (habitId) {
-        try {
-          const fetchedHabit = await getHabitById(currentUser.id, habitId);
-          if (fetchedHabit) {
-            setHabit(fetchedHabit);
-          } else {
-            setHabit(null);
-            setError(`Habit with ID "${habitId}" not found or you don't have permission to edit it.`);
-          }
-        } catch (err) {
-          console.error("Failed to fetch habit for editing:", err);
-          setError("Failed to load habit details. Please try again.");
-          setHabit(null);
-        }
-      } else {
+      if (!habitId) {
         setError("Invalid habit ID.");
         setHabit(null);
+        setIsDataLoading(false);
+        return;
       }
-      setIsLoading(false);
+      
+      setIsDataLoading(true);
+      setError(null);
+      try {
+        const fetchedHabit = await getHabitById(currentFirebaseUser.uid, habitId);
+        if (fetchedHabit) {
+          setHabit(fetchedHabit);
+        } else {
+          setHabit(null);
+          setError(`Habit with ID "${habitId}" not found or you don't have permission to edit it.`);
+        }
+      } catch (err) {
+        console.error("Failed to fetch habit for editing:", err);
+        setError("Failed to load habit details. Please try again.");
+        setHabit(null);
+      } finally {
+        setIsDataLoading(false);
+      }
     };
 
-    fetchUserAndHabit();
-  }, [habitId, router]);
+    if (!isAuthLoading) { // Only proceed if auth state is determined
+        fetchHabitData();
+    }
+  }, [habitId, router, currentFirebaseUser, isAuthLoading]);
 
-  if (isLoading) {
+  if (isAuthLoading || currentFirebaseUser === undefined) {
+    return (
+      <div className="flex flex-1 items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isDataLoading && currentFirebaseUser) {
     return (
       <div className="max-w-2xl mx-auto">
         <Card className="shadow-xl">
@@ -79,7 +104,7 @@ export default function EditHabitPage() {
     );
   }
 
-  if (error || !habit) {
+  if (error || (!habit && !isDataLoading)) { // Check !isDataLoading to ensure error isn't shown prematurely
     return (
       <div className="max-w-2xl mx-auto text-center py-10">
         <Card className="shadow-xl bg-destructive/10 border-destructive">
@@ -99,6 +124,11 @@ export default function EditHabitPage() {
       </div>
     );
   }
+  
+  if (!habit) { // Should be caught by above, but as a fallback
+    return <div className="max-w-2xl mx-auto text-center py-10"><p>Habit not found.</p></div>;
+  }
+
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -113,7 +143,6 @@ export default function EditHabitPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Pass userId if your HabitCreatorForm's updateHabit needs it explicitly, otherwise ensure firebase.ts functions use auth.currentUser */}
           <HabitCreatorForm habitToEdit={habit} mode="edit" />
         </CardContent>
       </Card>
