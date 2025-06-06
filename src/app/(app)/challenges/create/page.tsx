@@ -7,7 +7,7 @@ import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,7 +61,8 @@ export default function CreateChallengePage() {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth();
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
