@@ -32,7 +32,8 @@ const challengeFormSchema = z.object({
   endDate: z.date({ required_error: "End date is required." }),
   category: z.string().min(1, "Category is required."),
   imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal('')),
-  dataAiHint: z.string().max(50).optional(),
+  // Ensure dataAiHint is max 2 words for consistency with image generation guidelines
+  dataAiHint: z.string().max(50).optional().refine(val => !val || val.split(' ').length <= 2, { message: "AI Hint can be max 2 words." }),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -43,7 +44,7 @@ type ChallengeFormValues = z.infer<typeof challengeFormSchema>;
 export default function CreateChallengePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false); // Changed from isLoading to isSubmitting for clarity
+  const [isSubmitting, setIsSubmitting] = useState(false); 
   
   const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -75,28 +76,31 @@ export default function CreateChallengePage() {
   }, [isAuthLoading, currentFirebaseUser, router, toast]);
 
   const onSubmit: SubmitHandler<ChallengeFormValues> = async (data) => {
-    if (!currentFirebaseUser?.uid) { // Check currentFirebaseUser directly
+    if (!currentFirebaseUser?.uid) { 
         toast({ title: "Error", description: "User not identified. Cannot create challenge.", variant: "destructive" });
         return;
     }
     setIsSubmitting(true);
     try {
+      // Pass imageUrl and dataAiHint directly to addChallenge.
+      // addChallenge will handle logic for placeholder or AI generation.
       const challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'> = {
         title: data.title,
         description: data.description,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
         category: data.category,
-        imageUrl: data.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(data.title)}`,
-        dataAiHint: data.dataAiHint || data.category.toLowerCase(),
+        imageUrl: data.imageUrl, // Pass as is (can be empty)
+        dataAiHint: data.dataAiHint || data.category.toLowerCase().split(' ').slice(0,2).join(' '), // Pass hint or derive from category
       };
-      // addChallenge implicitly uses currentFirebaseUser.uid if it's designed that way in firebase.ts
+      
       await addChallenge(challengeData); 
       toast({ title: "Challenge Created!", description: `"${data.title}" is now live.` });
       reset();
       router.push('/challenges');
     } catch (error: any) {
-      toast({ title: "Error Creating Challenge", description: error.message || "Could not create challenge.", variant: "destructive" });
+      console.error("Error creating challenge:", error)
+      toast({ title: "Error Creating Challenge", description: error.message || "Could not create challenge. AI image generation might have failed.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -110,8 +114,6 @@ export default function CreateChallengePage() {
     );
   }
 
-  // If auth is resolved and still no user, useEffect above would have redirected.
-  // This render path assumes user is authenticated or redirect is in progress.
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -123,6 +125,7 @@ export default function CreateChallengePage() {
           </CardTitle>
           <CardDescription>
             Inspire the community by setting up a new challenge for everyone to join.
+            Provide an image URL or let AI generate one for you (may take a few extra seconds).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -230,12 +233,12 @@ export default function CreateChallengePage() {
               <Label htmlFor="imageUrl">Image URL (Optional)</Label>
               <Input id="imageUrl" {...register("imageUrl")} placeholder="https://example.com/image.png" disabled={isSubmitting} className="mt-1" />
               {errors.imageUrl && <p className="text-sm text-destructive mt-1">{errors.imageUrl.message}</p>}
-              <p className="text-xs text-muted-foreground mt-1">If left blank, a placeholder will be generated.</p>
+              <p className="text-xs text-muted-foreground mt-1">If left blank, AI will attempt to generate an image based on title/hint (can add a few seconds to creation).</p>
             </div>
              <div>
               <Label htmlFor="dataAiHint">Image AI Hint (Optional)</Label>
               <Input id="dataAiHint" {...register("dataAiHint")} placeholder="e.g. 'fitness workout' or 'nature meditation'" disabled={isSubmitting} className="mt-1" />
-               <p className="text-xs text-muted-foreground mt-1">One or two keywords for AI image generation if a custom URL is not provided. Max 2 words.</p>
+               <p className="text-xs text-muted-foreground mt-1">One or two keywords to guide AI image generation if no URL is provided. Max 2 words.</p>
               {errors.dataAiHint && <p className="text-sm text-destructive mt-1">{errors.dataAiHint.message}</p>}
             </div>
 

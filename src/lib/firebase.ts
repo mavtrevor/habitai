@@ -36,6 +36,8 @@ import type { UserProfile, Habit, CommunityPost, Challenge, Badge, Notification 
 // Actual Genkit flow imports
 import { generateAIInsights as genkitGenerateAIInsights, type GenerateAIInsightsInput, type GenerateAIInsightsOutput } from '@/ai/flows/generate-ai-insights';
 import { suggestHabitMicroTask as genkitSuggestHabitMicroTask, type SuggestHabitMicroTaskInput, type SuggestHabitMicroTaskOutput } from '@/ai/flows/suggest-habit-micro-task';
+import { generateChallengeImage as genkitGenerateChallengeImage, type GenerateChallengeImageInput, type GenerateChallengeImageOutput } from '@/ai/flows/generate-challenge-image-flow';
+
 
 // --- User Profile ---
 export const createUserProfileDocument = async (user: FirebaseAuthUser, additionalData: Partial<UserProfile> = {}) => {
@@ -330,19 +332,49 @@ export const getChallengeById = async (challengeId: string): Promise<Challenge |
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as Challenge : undefined;
 };
 
-export const addChallenge = async (challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
+export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
   const firestoreInstance = getFirestore();
   const authInstance = getAuth();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
   const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated for creating challenge");
 
+  let finalImageUrl = challengeDataInput.imageUrl;
+  // Retain the user-provided or category-derived hint for general purpose, even if AI image is generated
+  let finalDataAiHint = challengeDataInput.dataAiHint || challengeDataInput.category?.toLowerCase() || 'challenge image'; 
+
+  if (!finalImageUrl && challengeDataInput.title) {
+    console.log("No image URL provided, attempting AI generation...");
+    try {
+      const imagePrompt = `A high-quality, vibrant, and inspiring stock photo for a community challenge. Title: "${challengeDataInput.title}". Category: ${challengeDataInput.category}. Keywords: ${finalDataAiHint}. The image should be visually appealing and relevant. Avoid text in the image.`;
+      const generatedImageResult = await genkitGenerateChallengeImage({ prompt: imagePrompt });
+      if (generatedImageResult.imageUrl) {
+        finalImageUrl = generatedImageResult.imageUrl;
+        // The dataAiHint for the challenge itself remains based on user input or category,
+        // as this describes the challenge, not necessarily the exact generated image.
+        // The <img> tag will use this hint.
+      } else {
+        console.warn("AI image generation did not return a URL, using placeholder.");
+        finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
+      }
+    } catch (genError) {
+      console.warn("AI image generation failed, using placeholder:", genError);
+      finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
+    }
+  } else if (!finalImageUrl) {
+    // Fallback if no user-provided URL and title is somehow missing (though form should validate title)
+    finalImageUrl = `https://placehold.co/600x400.png?text=Challenge`;
+  }
+
+
   const challengesFbCollection = collection(firestoreInstance, 'challenges');
   const now = Timestamp.now();
   const newChallengePayload = {
-    ...challengeData,
+    ...challengeDataInput,
+    imageUrl: finalImageUrl,
+    dataAiHint: finalDataAiHint.split(' ').slice(0, 2).join(' '), // Ensure hint is max 2 words for the <img> tag
     creatorId: user.uid,
-    participantIds: [user.uid], // Creator automatically participates
+    participantIds: [user.uid], 
     leaderboardPreview: [],
     createdAt: now.toDate().toISOString(),
   };
