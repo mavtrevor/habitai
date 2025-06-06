@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client'; // Changed import
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { ProgressChart } from '@/components/dashboard/progress-chart';
 import { StreaksOverview } from '@/components/dashboard/streaks-overview';
@@ -29,7 +29,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth(); // Get auth instance
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => { // Use the instance
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
@@ -42,9 +43,9 @@ export default function DashboardPage() {
         setHabits([]);
         setBadges([]);
         setHabitsDataString("[]");
-        setIsDataLoading(false); // No data to load if no user
-        if (!isAuthLoading && currentFirebaseUser === null) { // Explicitly not logged in
-             // No error message here, will be handled by render logic
+        setIsDataLoading(false); 
+        if (!isAuthLoading && currentFirebaseUser === null) { 
+             
         }
         return;
       }
@@ -54,7 +55,7 @@ export default function DashboardPage() {
       try {
         const [fetchedHabits, fetchedBadges] = await Promise.all([
           getUserHabits(currentFirebaseUser.uid),
-          getUserBadges(currentFirebaseUser.uid) // Assuming getUserBadges now takes uid
+          getUserBadges(currentFirebaseUser.uid) 
         ]);
 
         setHabits(fetchedHabits);
@@ -70,7 +71,6 @@ export default function DashboardPage() {
       }
     };
 
-    // Only fetch data if auth state is determined (i.e., not undefined)
     if (currentFirebaseUser !== undefined) {
       fetchDashboardData();
     }
@@ -78,11 +78,10 @@ export default function DashboardPage() {
 
 
   const weeklyProgress = React.useMemo(() => {
-    // Ensure this calculation is robust even if habits are temporarily empty during loading
-    if (!habits || habits.length === 0) return [0,0,0,0]; // Default or empty state for chart
+    if (!habits || habits.length === 0) return [0,0,0,0]; 
     return [
       habits.length > 0 ? (habits[0].progress.filter(p => p.completed).length / (habits[0].progress.length || 1)) * 100 : 60,
-      75, // These seem like placeholder values, adjust as needed
+      75, 
       70,
       85
     ];
@@ -107,7 +106,6 @@ export default function DashboardPage() {
     );
   }
   
-  // User is authenticated, now check data loading status
   if (isDataLoading) {
      return (
       <div className="flex flex-1 items-center justify-center h-full">

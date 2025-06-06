@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, Settings, UserCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { signOut as firebaseSignOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { signOut as firebaseSignOut, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { getAuth } from '@/lib/firebase/client'; // Changed import
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -25,7 +25,8 @@ export function UserNav() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth(); // Get auth instance
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => { // Use the instance
       setCurrentUser(user);
       setIsLoading(false);
     });
@@ -34,7 +35,8 @@ export function UserNav() {
 
   const handleLogout = async () => {
     try {
-      await firebaseSignOut(auth);
+      const authInstance = getAuth(); // Get auth instance
+      await firebaseSignOut(authInstance); // Use the instance
       router.push('/auth');
     } catch (error) {
       console.error('Logout failed:', error);
