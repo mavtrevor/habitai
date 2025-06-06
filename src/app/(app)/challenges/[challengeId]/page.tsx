@@ -9,7 +9,7 @@ import { getChallengeById, joinChallenge as firebaseJoinChallenge } from '@/lib/
 import type { Challenge } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trophy, ArrowLeft, CalendarDays, Users, Tag, ListChecks, CheckCircle, UserPlus } from 'lucide-react';
+import { Loader2, Trophy, ArrowLeft, CalendarDays, Users, Tag, ListChecks, CheckCircle, UserPlus, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -104,7 +104,7 @@ export default function ChallengeDetailPage() {
     try {
       const updatedChallenge = await firebaseJoinChallenge(challenge.id, currentFirebaseUser.uid);
       if (updatedChallenge) {
-        setChallenge(updatedChallenge); // Update local state with the new challenge data (e.g., participant count)
+        setChallenge(updatedChallenge); 
         setHasJoined(true);
         toast({ title: "Successfully Joined!", description: `You've joined the "${challenge.title}" challenge.`});
       } else {
@@ -117,6 +117,20 @@ export default function ChallengeDetailPage() {
       setIsJoining(false);
     }
   }, [currentFirebaseUser, challenge, hasJoined, toast]);
+
+  const handleShareChallenge = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.clipboard) {
+      toast({ title: "Share Failed", description: "Cannot access clipboard to copy link.", variant: "destructive" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link Copied!", description: "Challenge link copied to your clipboard." });
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+      toast({ title: "Share Failed", description: "Could not copy link to clipboard.", variant: "destructive" });
+    }
+  }, [toast]);
 
 
   if (isAuthLoading || currentFirebaseUser === undefined || (isDataLoading && challenge === undefined) ) {
@@ -254,9 +268,9 @@ export default function ChallengeDetailPage() {
             </div>
           )}
         </CardContent>
-        <CardFooter className="border-t pt-6">
+        <CardFooter className="border-t pt-6 flex flex-col sm:flex-row gap-2">
           <Button 
-            className="w-full md:w-auto bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-3 px-6"
+            className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-3 px-6 flex-1"
             onClick={handleJoinChallenge}
             disabled={isJoining || hasJoined || daysRemaining < 0}
           >
@@ -269,8 +283,17 @@ export default function ChallengeDetailPage() {
             )}
             {isJoining ? "Joining..." : hasJoined ? "Already Joined" : (daysRemaining < 0 ? "Challenge Ended" : "Join Challenge")}
           </Button>
+           <Button 
+            variant="outline"
+            className="w-full sm:w-auto text-lg py-3 px-6"
+            onClick={handleShareChallenge}
+          >
+            <Share2 className="mr-2 h-5 w-5" />
+            Share Challenge
+          </Button>
         </CardFooter>
       </Card>
     </div>
   );
 }
+
