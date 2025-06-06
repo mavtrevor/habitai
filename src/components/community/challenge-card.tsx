@@ -79,9 +79,8 @@ const ChallengeCardComponent: FC<ChallengeCardProps> = ({ challenge }) => {
         )}
       </CardContent>
       <CardFooter className="border-t pt-3">
-        {/* TODO: Implement actual challenge details page if needed */}
         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-          <Link href={`/community?tab=challenges`}>View Details</Link> 
+          <Link href={`/challenges/${challenge.id}`}>View Details</Link> 
         </Button>
       </CardFooter>
     </Card>
