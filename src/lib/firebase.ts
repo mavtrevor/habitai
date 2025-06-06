@@ -350,6 +350,30 @@ export const addChallenge = async (challengeData: Omit<Challenge, 'id' | 'create
   return { id: docRef.id, ...newChallengePayload };
 };
 
+export const joinChallenge = async (challengeId: string, userId: string): Promise<Challenge | undefined> => {
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  if (!userId) throw new Error("User not authenticated to join challenge");
+  if (!challengeId) throw new Error("Challenge ID is required");
+
+  const challengeRef = doc(firestoreInstance, 'challenges', challengeId);
+  
+  try {
+    await updateDoc(challengeRef, {
+      participantIds: arrayUnion(userId)
+    });
+    // Re-fetch the challenge to return its updated state
+    const updatedChallengeSnap = await getDoc(challengeRef);
+    if (updatedChallengeSnap.exists()) {
+      return { id: updatedChallengeSnap.id, ...updatedChallengeSnap.data() } as Challenge;
+    }
+    return undefined;
+  } catch (error) {
+    console.error("Error joining challenge:", error);
+    throw error; // Re-throw to be caught by the UI
+  }
+};
+
 
 // --- Badges ---
 export const getUserBadges = async (userId: string): Promise<Badge[]> => {

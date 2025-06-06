@@ -1,31 +1,35 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { getAuth } from '@/lib/firebase/client';
-import { getChallengeById } from '@/lib/firebase';
+import { getChallengeById, joinChallenge as firebaseJoinChallenge } from '@/lib/firebase';
 import type { Challenge } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trophy, ArrowLeft, CalendarDays, Users, Tag, ListChecks } from 'lucide-react';
+import { Loader2, Trophy, ArrowLeft, CalendarDays, Users, Tag, ListChecks, CheckCircle, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ChallengeDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const challengeId = typeof params.challengeId === 'string' ? params.challengeId : undefined;
   
-  const [challenge, setChallenge] = useState<Challenge | null | undefined>(undefined); // undefined initially, null if not found, Challenge if found
+  const [challenge, setChallenge] = useState<Challenge | null | undefined>(undefined);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [isDataLoading, setIsDataLoading] = useState(true); // For challenge data
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
+  const [isJoining, setIsJoining] = useState(false);
+  const [hasJoined, setHasJoined] = useState(false);
 
   useEffect(() => {
     const authInstance = getAuth();
@@ -57,6 +61,11 @@ export default function ChallengeDetailPage() {
         const fetchedChallenge = await getChallengeById(challengeId);
         if (fetchedChallenge) {
           setChallenge(fetchedChallenge);
+          if (currentFirebaseUser && fetchedChallenge.participantIds.includes(currentFirebaseUser.uid)) {
+            setHasJoined(true);
+          } else {
+            setHasJoined(false);
+          }
         } else {
           setError("Challenge not found or you don't have permission to view it.");
           setChallenge(null);
@@ -73,6 +82,42 @@ export default function ChallengeDetailPage() {
     fetchChallenge();
 
   }, [challengeId, router, currentFirebaseUser, isAuthLoading]);
+
+  useEffect(() => {
+    if (challenge && currentFirebaseUser) {
+      setHasJoined(challenge.participantIds.includes(currentFirebaseUser.uid));
+    }
+  }, [challenge, currentFirebaseUser]);
+
+
+  const handleJoinChallenge = useCallback(async () => {
+    if (!currentFirebaseUser || !challenge) {
+      toast({ title: "Error", description: "Cannot join challenge. User or challenge data missing.", variant: "destructive"});
+      return;
+    }
+    if (hasJoined) {
+      toast({ title: "Already Joined", description: "You are already a participant in this challenge.", variant: "default"});
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      const updatedChallenge = await firebaseJoinChallenge(challenge.id, currentFirebaseUser.uid);
+      if (updatedChallenge) {
+        setChallenge(updatedChallenge); // Update local state with the new challenge data (e.g., participant count)
+        setHasJoined(true);
+        toast({ title: "Successfully Joined!", description: `You've joined the "${challenge.title}" challenge.`});
+      } else {
+        throw new Error("Failed to update challenge after joining.");
+      }
+    } catch (err: any) {
+      console.error("Error joining challenge:", err);
+      toast({ title: "Join Failed", description: err.message || "Could not join the challenge.", variant: "destructive"});
+    } finally {
+      setIsJoining(false);
+    }
+  }, [currentFirebaseUser, challenge, hasJoined, toast]);
+
 
   if (isAuthLoading || currentFirebaseUser === undefined || (isDataLoading && challenge === undefined) ) {
     return (
@@ -103,7 +148,7 @@ export default function ChallengeDetailPage() {
     );
   }
 
-  if (!challenge && !isDataLoading) { // Challenge not found, and not loading anymore
+  if (!challenge && !isDataLoading) { 
     return (
         <div className="max-w-4xl mx-auto text-center py-10">
              <Card className="shadow-xl">
@@ -124,14 +169,12 @@ export default function ChallengeDetailPage() {
     );
   }
   
-  // If challenge is null here, it means it was not found, handled above.
-  // So, challenge should be valid from this point.
-  if (!challenge) return null; // Should be caught by above logic.
+  if (!challenge) return null;
 
   const startDate = parseISO(challenge.startDate);
   const endDate = parseISO(challenge.endDate);
   const daysRemaining = differenceInDays(endDate, new Date());
-  const totalDays = Math.max(1, differenceInDays(endDate, startDate)); // Ensure totalDays is at least 1 to prevent division by zero
+  const totalDays = Math.max(1, differenceInDays(endDate, startDate)); 
   const progress = totalDays > 0 ? Math.max(0, Math.min(100, ((totalDays - daysRemaining) / totalDays) * 100)) : (daysRemaining < 0 ? 100 : 0);
 
 
@@ -212,8 +255,19 @@ export default function ChallengeDetailPage() {
           )}
         </CardContent>
         <CardFooter className="border-t pt-6">
-          <Button className="w-full md:w-auto bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-3 px-6">
-            <Trophy className="mr-2 h-5 w-5" /> Join Challenge
+          <Button 
+            className="w-full md:w-auto bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-3 px-6"
+            onClick={handleJoinChallenge}
+            disabled={isJoining || hasJoined || daysRemaining < 0}
+          >
+            {isJoining ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : hasJoined ? (
+              <CheckCircle className="mr-2 h-5 w-5" />
+            ) : (
+              <UserPlus className="mr-2 h-5 w-5" />
+            )}
+            {isJoining ? "Joining..." : hasJoined ? "Already Joined" : (daysRemaining < 0 ? "Challenge Ended" : "Join Challenge")}
           </Button>
         </CardFooter>
       </Card>
