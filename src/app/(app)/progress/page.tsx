@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client';
 import { getCurrentUser, getUserHabits } from '@/lib/firebase';
 import type { Habit } from '@/types';
 import { ProgressChart } from '@/components/dashboard/progress-chart';
@@ -40,7 +40,8 @@ export default function ProgressInsightsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth();
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
