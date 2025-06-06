@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client'; // Changed import
 import { ChallengeCard } from "@/components/community/challenge-card";
 import { getChallenges } from "@/lib/firebase";
 import type { Challenge } from '@/types';
@@ -18,7 +18,8 @@ export default function ChallengesPage() {
   const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth(); // Get auth instance
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => { // Use the instance
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
