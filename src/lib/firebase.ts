@@ -1,5 +1,5 @@
 
-import { auth, firestore } from './firebase/client';
+import { getAuth, getFirestore } from './firebase/client';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -39,8 +39,9 @@ import { suggestHabitMicroTask as genkitSuggestHabitMicroTask, type SuggestHabit
 
 // --- User Profile ---
 export const createUserProfileDocument = async (user: FirebaseAuthUser, additionalData: Partial<UserProfile> = {}) => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const userRef = doc(firestore, `users/${user.uid}`);
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const userRef = doc(firestoreInstance, `users/${user.uid}`);
   const userSnapshot = await getDoc(userRef);
 
   if (!userSnapshot.exists()) {
@@ -67,21 +68,24 @@ export const createUserProfileDocument = async (user: FirebaseAuthUser, addition
 };
 
 export const getCurrentUser = async (): Promise<UserProfile | null> => {
-  const firebaseUser = auth?.currentUser;
+  const authInstance = getAuth();
+  const firebaseUser = authInstance?.currentUser;
   if (!firebaseUser) return null;
   return getUserProfile(firebaseUser.uid);
 };
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
   if (!userId) return null;
-  const userRef = doc(firestore, `users/${userId}`);
+  const userRef = doc(firestoreInstance, `users/${userId}`);
   const userSnapshot = await getDoc(userRef);
   if (userSnapshot.exists()) {
     return userSnapshot.data() as UserProfile;
   } else {
     console.warn(`No profile document found for user ${userId}. Attempting to create from Auth.`);
-    const firebaseUser = auth?.currentUser;
+    const authInstance = getAuth();
+    const firebaseUser = authInstance?.currentUser;
     if (firebaseUser && firebaseUser.uid === userId) {
         return createUserProfileDocument(firebaseUser);
     }
@@ -90,8 +94,9 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
 };
 
 export const updateUserProfile = async (userId: string, data: Partial<UserProfile>): Promise<UserProfile | null> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const userRef = doc(firestore, `users/${userId}`);
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const userRef = doc(firestoreInstance, `users/${userId}`);
   const cleanData = Object.entries(data).reduce((acc, [key, value]) => {
     if (value !== undefined) {
       (acc as any)[key] = value;
@@ -105,68 +110,77 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
 
 // --- Firebase Auth wrappers ---
 export const signInWithEmail = async (email: string, pass: string): Promise<FirebaseAuthUser> => {
-  if (!auth) throw new Error("Firebase auth not initialized");
-  const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  const userCredential = await signInWithEmailAndPassword(authInstance, email, pass);
   await getUserProfile(userCredential.user.uid); // Ensure profile exists or is created
   return userCredential.user;
 };
 
 export const signUpWithEmail = async (name: string, email: string, pass: string): Promise<FirebaseAuthUser> => {
-  if (!auth) throw new Error("Firebase auth not initialized");
-  const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  const userCredential = await createUserWithEmailAndPassword(authInstance, email, pass);
   const user = userCredential.user;
 
   await firebaseUpdateProfile(user, { displayName: name });
   await createUserProfileDocument(user, { name }); 
   
   await firebaseSendEmailVerification(user);
-  await firebaseSignOut(auth); 
+  await firebaseSignOut(authInstance); 
   return user;
 };
 
 export const signInWithGoogle = async (): Promise<FirebaseAuthUser> => {
-  if (!auth) throw new Error("Firebase auth not initialized");
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
   const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(auth, provider);
+  const result = await signInWithPopup(authInstance, provider);
   await createUserProfileDocument(result.user); 
   return result.user;
 };
 
 export const signOut = async (): Promise<void> => {
-  if (!auth) throw new Error("Firebase auth not initialized");
-  await firebaseSignOut(auth);
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  await firebaseSignOut(authInstance);
 };
 
 export const sendEmailVerification = async (user: FirebaseAuthUser): Promise<void> => {
-  if (!auth) throw new Error("Firebase auth not initialized");
+  // const authInstance = getAuth(); // sendEmailVerification is directly from 'firebase/auth' and uses the user object
+  if (!user) throw new Error("User object required for sending verification email.");
   await firebaseSendEmailVerification(user);
 };
 
 
 // --- Habits ---
 export const getUserHabits = async (userId: string): Promise<Habit[]> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
   if (!userId) return [];
-  const habitsRef = collection(firestore, `users/${userId}/habits`);
+  const habitsRef = collection(firestoreInstance, `users/${userId}/habits`);
   const q = query(habitsRef, orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit));
+  return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as Habit));
 };
 
 export const getHabitById = async (userId: string, habitId: string): Promise<Habit | undefined> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
   if (!userId || !habitId) return undefined;
-  const habitRef = doc(firestore, `users/${userId}/habits/${habitId}`);
+  const habitRef = doc(firestoreInstance, `users/${userId}/habits/${habitId}`);
   const snapshot = await getDoc(habitRef);
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as Habit : undefined;
 };
 
 export const addHabit = async (habitData: Omit<Habit, 'id' | 'createdAt' | 'progress' | 'streak' | 'userId' | 'lastUpdatedAt'>): Promise<Habit> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const user = auth.currentUser;
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated");
 
-  const habitsRef = collection(firestore, `users/${user.uid}/habits`);
+  const habitsRef = collection(firestoreInstance, `users/${user.uid}/habits`);
   const now = Timestamp.now();
   const newHabitPayload = {
     ...habitData,
@@ -181,11 +195,13 @@ export const addHabit = async (habitData: Omit<Habit, 'id' | 'createdAt' | 'prog
 };
 
 export const updateHabit = async (habitData: Habit): Promise<Habit | undefined> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const user = auth.currentUser;
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
   if (!user || user.uid !== habitData.userId) throw new Error("Unauthorized or mismatched user");
   
-  const habitRef = doc(firestore, `users/${user.uid}/habits/${habitData.id}`);
+  const habitRef = doc(firestoreInstance, `users/${user.uid}/habits/${habitData.id}`);
   const updatedPayload = {
     ...habitData,
     lastUpdatedAt: Timestamp.now().toDate().toISOString(),
@@ -196,11 +212,13 @@ export const updateHabit = async (habitData: Habit): Promise<Habit | undefined> 
 };
 
 export const updateHabitProgress = async (habitId: string, dateISO: string, completed: boolean): Promise<Habit | undefined> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const user = auth.currentUser;
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated");
 
-  const habitRef = doc(firestore, `users/${user.uid}/habits/${habitId}`);
+  const habitRef = doc(firestoreInstance, `users/${user.uid}/habits/${habitId}`);
   const habitSnap = await getDoc(habitRef);
 
   if (!habitSnap.exists()) throw new Error("Habit not found");
@@ -233,22 +251,25 @@ export const updateHabitProgress = async (habitId: string, dateISO: string, comp
 
 // --- Community Posts ---
 export const getCommunityPosts = async (lastVisiblePost?: CommunityPost, count: number = 10): Promise<CommunityPost[]> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const postsFbCollection = collection(firestore, 'posts');
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const postsFbCollection = collection(firestoreInstance, 'posts');
   let q = query(postsFbCollection, orderBy('createdAt', 'desc'), limit(count));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityPost));
+  return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as CommunityPost));
 };
 
 export const addCommunityPost = async (postData: Omit<CommunityPost, 'id' | 'createdAt' | 'userName' | 'userAvatarUrl' | 'likes' | 'commentsCount' | 'userId'>): Promise<CommunityPost> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const user = auth.currentUser;
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated");
   
   const userProfile = await getUserProfile(user.uid);
   if (!userProfile) throw new Error("User profile not found");
 
-  const postsFbCollection = collection(firestore, 'posts');
+  const postsFbCollection = collection(firestoreInstance, 'posts');
   const now = Timestamp.now();
   const newPostPayload = {
     ...postData,
@@ -264,8 +285,9 @@ export const addCommunityPost = async (postData: Omit<CommunityPost, 'id' | 'cre
 };
 
 export const likePost = async (postId: string, userIdToToggle: string): Promise<CommunityPost | undefined> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const postRef = doc(firestore, `posts/${postId}`);
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const postRef = doc(firestoreInstance, `posts/${postId}`);
   const postSnap = await getDoc(postRef);
   if (!postSnap.exists()) return undefined;
 
@@ -284,19 +306,22 @@ export const likePost = async (postId: string, userIdToToggle: string): Promise<
 
 // --- Challenges ---
 export const getChallenges = async (): Promise<Challenge[]> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const challengesFbCollection = collection(firestore, 'challenges');
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const challengesFbCollection = collection(firestoreInstance, 'challenges');
   const q = query(challengesFbCollection, orderBy('startDate', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Challenge));
+  return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as Challenge));
 };
 
 export const addChallenge = async (challengeData: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
-  if (!firestore) throw new Error("Firestore not initialized");
-  const user = auth.currentUser;
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated for creating challenge");
 
-  const challengesFbCollection = collection(firestore, 'challenges');
+  const challengesFbCollection = collection(firestoreInstance, 'challenges');
   const now = Timestamp.now();
   const newChallengePayload = {
     ...challengeData,
@@ -320,8 +345,9 @@ export const getUserBadges = async (userId: string): Promise<Badge[]> => {
 };
 
 export const awardBadge = async (userId: string, badgeId: string): Promise<void> => {
-    if (!firestore) throw new Error("Firestore not initialized");
-    const userRef = doc(firestore, `users/${userId}`);
+    const firestoreInstance = getFirestore();
+    if (!firestoreInstance) throw new Error("Firestore not initialized");
+    const userRef = doc(firestoreInstance, `users/${userId}`);
     await updateDoc(userRef, {
         earnedBadgeIds: arrayUnion(badgeId)
     });
@@ -349,18 +375,20 @@ export const suggestHabitMicroTask = async (input: SuggestHabitMicroTaskInput): 
 
 // --- Notifications ---
 export const getNotifications = async (userId: string, count: number = 10): Promise<Notification[]> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
   if (!userId) return [];
-  const notificationsRef = collection(firestore, `users/${userId}/notifications`);
+  const notificationsRef = collection(firestoreInstance, `users/${userId}/notifications`);
   const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(count));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+  return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as Notification));
 };
 
 export const addNotification = async (userId: string, notificationData: Omit<Notification, 'id' | 'createdAt' | 'userId' | 'read'>): Promise<Notification> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if(!firestoreInstance) throw new Error("Firestore not initialized");
   if(!userId) throw new Error("User ID is required to add a notification.");
-  const notificationsRef = collection(firestore, `users/${userId}/notifications`);
+  const notificationsRef = collection(firestoreInstance, `users/${userId}/notifications`);
   const now = Timestamp.now();
   const newNotificationPayload = {
     ...notificationData,
@@ -373,9 +401,10 @@ export const addNotification = async (userId: string, notificationData: Omit<Not
 };
 
 export const markNotificationAsRead = async (userId: string, notificationId: string): Promise<boolean> => {
-  if (!firestore) throw new Error("Firestore not initialized");
+  const firestoreInstance = getFirestore();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
   if (!userId || !notificationId) return false;
-  const notificationRef = doc(firestore, `users/${userId}/notifications/${notificationId}`);
+  const notificationRef = doc(firestoreInstance, `users/${userId}/notifications/${notificationId}`);
   try {
     await updateDoc(notificationRef, { read: true });
     return true;
@@ -386,17 +415,18 @@ export const markNotificationAsRead = async (userId: string, notificationId: str
 };
 
 export const markAllNotificationsAsRead = async (userId: string): Promise<boolean> => {
-    if (!firestore) throw new Error("Firestore not initialized");
+    const firestoreInstance = getFirestore();
+    if (!firestoreInstance) throw new Error("Firestore not initialized");
     if (!userId) return false;
-    const notificationsRef = collection(firestore, `users/${userId}/notifications`);
+    const notificationsRef = collection(firestoreInstance, `users/${userId}/notifications`);
     const q = query(notificationsRef, where("read", "==", false));
     const snapshot = await getDocs(q);
     
     if (snapshot.empty) return true;
 
-    const batch = writeBatch(firestore);
-    snapshot.docs.forEach(doc => {
-        batch.update(doc.ref, { read: true });
+    const batch = writeBatch(firestoreInstance);
+    snapshot.docs.forEach(docData => { // Changed doc to docData to avoid conflict
+        batch.update(docData.ref, { read: true });
     });
 
     try {

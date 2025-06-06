@@ -1,7 +1,8 @@
+
 // src/lib/firebase/client.ts
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { type Auth, getAuth } from 'firebase/auth';
-import { type Firestore, getFirestore } from 'firebase/firestore'; // Ensure Firestore is imported
+import { type Auth, getAuth as getFirebaseAuthInstance } from 'firebase/auth';
+import { type Firestore, getFirestore as getFirebaseFirestoreInstance } from 'firebase/firestore';
 // import { Functions, getFunctions } from 'firebase/functions'; // Uncomment if you use Functions
 // import { FirebaseStorage, getStorage } from 'firebase/storage'; // Uncomment if you use Storage
 
@@ -15,25 +16,40 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-let app: FirebaseApp;
-let auth: Auth;
-let firestore: Firestore; // Declare firestore
-// let functions: Functions;
-// let storage: FirebaseStorage;
+let appInstance: FirebaseApp;
 
-if (typeof window !== 'undefined' && !getApps().length) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  firestore = getFirestore(app); // Initialize firestore
-  // functions = getFunctions(app);
-  // storage = getStorage(app);
-} else if (typeof window !== 'undefined') {
-  app = getApp();
-  auth = getAuth(app);
-  firestore = getFirestore(app); // Get firestore instance
-  // functions = getFunctions(app);
-  // storage = getStorage(app);
+function getFirebaseApp(): FirebaseApp {
+  if (typeof window !== 'undefined') {
+    if (!getApps().length) {
+      appInstance = initializeApp(firebaseConfig);
+    } else {
+      appInstance = getApp();
+    }
+    return appInstance;
+  }
+  // Fallback for server-side, though client SDK primarily for client
+  // This might need adjustment based on server-side auth patterns if used
+  if (!getApps().length) {
+    // console.warn("Initializing Firebase App on server. Ensure this is intended.");
+    return initializeApp(firebaseConfig);
+  }
+  return getApp();
 }
 
-// @ts-ignore
-export { app, auth, firestore /*, functions, storage */ };
+function getAuth(): Auth {
+  return getFirebaseAuthInstance(getFirebaseApp());
+}
+
+function getFirestore(): Firestore {
+  return getFirebaseFirestoreInstance(getFirebaseApp());
+}
+
+// let functions: Functions;
+// let storage: FirebaseStorage;
+// if (typeof window !== 'undefined') {
+//   functions = getFunctions(getFirebaseApp());
+//   storage = getStorage(getFirebaseApp());
+// }
+
+
+export { getFirebaseApp, getAuth, getFirestore /*, functions, storage */ };
