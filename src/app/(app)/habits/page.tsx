@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client';
 import { HabitProgressCard } from '@/components/dashboard/habit-progress-card';
 import { getUserHabits } from '@/lib/firebase';
 import type { Habit } from '@/types';
@@ -34,7 +34,8 @@ export default function HabitsListPage() {
   // const [sortBy, setSortBy] = useState<string>('lastUpdated');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth();
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });

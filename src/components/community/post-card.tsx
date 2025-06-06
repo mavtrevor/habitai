@@ -11,7 +11,7 @@ import { ThumbsUp, MessageSquare, MoreHorizontal, Share2, Trash2, Flag } from 'l
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { likePost as firebaseLikePost, deleteDoc } from '@/lib/firebase'; // Assuming deleteDoc for posts will be added to firebase.ts
+import { likePost as firebaseLikePost, deletePost as firebaseDeletePost } from '@/lib/firebase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,14 +20,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from '@/hooks/use-toast';
-// Placeholder for a real delete function
-// async function deletePostFromDb(postId: string): Promise<void> { console.warn(`deletePostFromDb(${postId}) not implemented`); }
 
 
 interface PostCardProps {
   post: CommunityPost;
   currentUserId: string;
-  onDeletePost?: (postId: string) => void; // Optional: to update parent list
+  onDeletePost?: (postId: string) => void;
 }
 
 const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId, onDeletePost }) => {
@@ -41,14 +39,13 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
     const originalIsLiked = isLikedByCurrentUser;
     const originalLikeCount = optimisticLikeCount;
 
-    // Optimistic update
     setIsLikedByCurrentUser(prev => !prev);
     setOptimisticLikeCount(prev => originalIsLiked ? prev - 1 : prev + 1);
 
     try {
       const updatedPost = await firebaseLikePost(post.id, currentUserId);
       if (updatedPost) {
-        setPost(updatedPost); // Update with actual data from backend
+        setPost(updatedPost); 
         setIsLikedByCurrentUser(updatedPost.likes.includes(currentUserId));
         setOptimisticLikeCount(updatedPost.likes.length);
       } else {
@@ -56,7 +53,6 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
       }
     } catch (error) {
       console.error("Error liking post:", error);
-      // Revert optimistic update on error
       setIsLikedByCurrentUser(originalIsLiked);
       setOptimisticLikeCount(originalLikeCount);
       toast({title: "Error", description: "Could not update like.", variant: "destructive"});
@@ -68,17 +64,17 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
         toast({title: "Unauthorized", description: "You can only delete your own posts.", variant: "destructive"});
         return;
     }
+    // Confirmation step:
     if (!window.confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
         return;
     }
     try {
-        // await deletePostFromDb(post.id); // Replace with actual Firebase delete
-        // await deleteDoc(doc(firestore, 'posts', post.id)); // Example, implement in firebase.ts
+        await firebaseDeletePost(post.id); 
         toast({title: "Post Deleted", description: "Your post has been removed."});
-        if (onDeletePost) onDeletePost(post.id); // Notify parent to remove from list
-    } catch (error) {
+        if (onDeletePost) onDeletePost(post.id); 
+    } catch (error: any) {
         console.error("Error deleting post:", error);
-        toast({title: "Error", description: "Could not delete post.", variant: "destructive"});
+        toast({title: "Error", description: error.message || "Could not delete post.", variant: "destructive"});
     }
   };
   
@@ -139,7 +135,7 @@ const PostCardComponent: FC<PostCardProps> = ({ post: initialPost, currentUserId
           </div>
         )}
         {post.habitId && (
-             <Link href={`/habits#${post.habitId}`}> {/* Direct link to habit on habits page if ID is known and unique */}
+             <Link href={`/habits#${post.habitId}`}> 
                 <Button variant="link" className="px-0 h-auto text-xs mt-2 text-primary hover:underline">
                     Related Habit
                 </Button>
