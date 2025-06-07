@@ -36,7 +36,8 @@ import type { UserProfile, Habit, CommunityPost, Challenge, Badge, Notification 
 // Actual Genkit flow imports
 import { generateAIInsights as genkitGenerateAIInsights, type GenerateAIInsightsInput, type GenerateAIInsightsOutput } from '@/ai/flows/generate-ai-insights';
 import { suggestHabitMicroTask as genkitSuggestHabitMicroTask, type SuggestHabitMicroTaskInput, type SuggestHabitMicroTaskOutput } from '@/ai/flows/suggest-habit-micro-task';
-import { generateChallengeImage as genkitGenerateChallengeImage, type GenerateChallengeImageInput, type GenerateChallengeImageOutput } from '@/ai/flows/generate-challenge-image-flow';
+// import { generateChallengeImage as genkitGenerateChallengeImage, type GenerateChallengeImageInput, type GenerateChallengeImageOutput } from '@/ai/flows/generate-challenge-image-flow';
+import { getPexelsImageForChallenge } from '@/app/(app)/challenges/actions';
 
 
 // --- User Profile ---
@@ -340,25 +341,30 @@ export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'c
   if (!user) throw new Error("User not authenticated for creating challenge");
 
   let finalImageUrl = challengeDataInput.imageUrl;
-  // Retain the user-provided or category-derived hint for general purpose, even if AI image is generated
-  let finalDataAiHint = challengeDataInput.dataAiHint || challengeDataInput.category?.toLowerCase() || 'challenge image'; 
+  let finalDataAiHint = challengeDataInput.dataAiHint || challengeDataInput.category?.toLowerCase() || 'challenge image';
 
   if (!finalImageUrl && challengeDataInput.title) {
-    console.log("No image URL provided, attempting AI generation...");
+    console.log("No image URL provided by user, attempting Pexels fetch...");
     try {
-      const imagePrompt = `A high-quality, vibrant, and inspiring stock photo for a community challenge. Title: "${challengeDataInput.title}". Category: ${challengeDataInput.category}. Keywords: ${finalDataAiHint}. The image should be visually appealing and relevant. Avoid text in the image.`;
-      const generatedImageResult = await genkitGenerateChallengeImage({ prompt: imagePrompt });
-      if (generatedImageResult.imageUrl) {
-        finalImageUrl = generatedImageResult.imageUrl;
-        // The dataAiHint for the challenge itself remains based on user input or category,
-        // as this describes the challenge, not necessarily the exact generated image.
-        // The <img> tag will use this hint.
+      // Construct a query for Pexels. Use title, category, and hint.
+      const pexelsQueryParts = [challengeDataInput.title, challengeDataInput.category, challengeDataInput.dataAiHint].filter(Boolean);
+      const pexelsQuery = pexelsQueryParts.join(' ').trim();
+      
+      if (pexelsQuery) {
+        const pexelsImageUrl = await getPexelsImageForChallenge(pexelsQuery);
+        if (pexelsImageUrl) {
+          finalImageUrl = pexelsImageUrl;
+          console.log("Pexels image fetched successfully:", finalImageUrl);
+        } else {
+          console.warn("Pexels did not return an image or API key missing, using placeholder.");
+          finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
+        }
       } else {
-        console.warn("AI image generation did not return a URL, using placeholder.");
-        finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
+        console.warn("Cannot form Pexels query (title is primary), using placeholder.");
+        finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title || "Challenge")}`;
       }
-    } catch (genError) {
-      console.warn("AI image generation failed, using placeholder:", genError);
+    } catch (pexelsError) {
+      console.error("Pexels API call failed, using placeholder:", pexelsError);
       finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
     }
   } else if (!finalImageUrl) {
@@ -375,7 +381,7 @@ export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'c
     dataAiHint: finalDataAiHint.split(' ').slice(0, 2).join(' '), // Ensure hint is max 2 words for the <img> tag
     creatorId: user.uid,
     participantIds: [user.uid], 
-    leaderboardPreview: [],
+    leaderboardPreview: [], // Default to empty, can be populated by a separate process/function
     createdAt: now.toDate().toISOString(),
   };
   const docRef = await addDoc(challengesFbCollection, newChallengePayload);
@@ -509,3 +515,4 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
         return false;
     }
 };
+
