@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -8,7 +9,7 @@
  * - GenerateAIInsightsOutput - The return type for the generateAIInsights function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai}from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateAIInsightsInputSchema = z.object({
@@ -45,8 +46,17 @@ const generateAIInsightsFlow = ai.defineFlow(
     inputSchema: GenerateAIInsightsInputSchema,
     outputSchema: GenerateAIInsightsOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  async (input) => {
+    const {output, errors} = await prompt(input);
+     if (errors && errors.length > 0) {
+      console.error('Error from generateAIInsightsPrompt:', errors);
+      throw new Error(errors.map(e => e.message || String(e)).join(', '));
+    }
+    if (!output) {
+      console.error('No output from generateAIInsightsPrompt for input:', input);
+      throw new Error('AI failed to generate insights. The model might have returned an empty response.');
+    }
+    return output;
   }
 );
+

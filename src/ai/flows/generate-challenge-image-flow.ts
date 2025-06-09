@@ -33,21 +33,37 @@ const generateChallengeImageFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      const {media} = await ai.generate({
-        model: 'googleai/gemini-2.0-flash-exp', // Ensure this model supports image generation
+      const {media, errors, output: textOutputForDebug} = await ai.generate({
+        model: 'googleai/gemini-2.0-flash-exp', 
         prompt: input.prompt,
         config: {
-          responseModalities: ['IMAGE'], // Request only IMAGE as output if TEXT is not needed
+          responseModalities: ['IMAGE', 'TEXT'], // Ensure TEXT is included as per Genkit docs for image models
         },
       });
+
+      if (errors && errors.length > 0) {
+        console.error('Errors during image generation call:', errors);
+        const errorMessages = errors.map(e => e.message || String(e)).join(', ');
+        // Include textOutputForDebug if available and relevant for debugging certain types of errors
+        console.error('Text output (if any) during image generation error:', textOutputForDebug);
+        throw new Error(`AI model returned errors: ${errorMessages}`);
+      }
 
       if (media && media.url) {
         return { imageUrl: media.url };
       } else {
-        throw new Error('Image generation did not return a valid media URL.');
+        console.error('Image generation did not return a valid media URL. Text output (if any):', textOutputForDebug);
+        throw new Error('Image generation did not return a valid media URL, and no specific errors were reported by the model.');
       }
     } catch (error) {
       console.error('Error in generateChallengeImageFlow:', error);
+      // Ensure we don't just re-wrap an already specific error message too generically
+      if (error instanceof Error && error.message.startsWith('AI model returned errors:')) {
+          throw error;
+      }
+      if (error instanceof Error && error.message.includes('Image generation did not return a valid media URL')) {
+          throw error;
+      }
       throw new Error(`Failed to generate image: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

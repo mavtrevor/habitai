@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -51,8 +52,17 @@ const suggestHabitMicroTaskFlow = ai.defineFlow(
     inputSchema: SuggestHabitMicroTaskInputSchema,
     outputSchema: SuggestHabitMicroTaskOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  async (input) => {
+    const {output, errors} = await prompt(input);
+    if (errors && errors.length > 0) {
+      console.error('Error from suggestHabitMicroTaskPrompt:', errors);
+      throw new Error(errors.map(e => e.message || String(e)).join(', '));
+    }
+    if (!output) {
+      console.error('No output from suggestHabitMicroTaskPrompt for input:', input);
+      throw new Error('AI failed to generate a task suggestion. The model might have returned an empty response.');
+    }
+    return output;
   }
 );
+
