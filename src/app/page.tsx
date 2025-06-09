@@ -138,8 +138,12 @@ export default function LandingPage() {
       <footer className="py-8 border-t bg-background">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} HabitAI. All rights reserved.</p>
-          <div className="mt-2">
-            <Link href="/privacy" className="hover:text-primary">Privacy Policy</Link> | <Link href="/terms" className="hover:text-primary">Terms of Service</Link>
+          <div className="mt-2 space-x-2">
+            <Link href="/privacy" className="hover:text-primary">Privacy Policy</Link>
+            <span className="text-muted-foreground/50">|</span>
+            <Link href="/terms" className="hover:text-primary">Terms of Service</Link>
+            <span className="text-muted-foreground/50">|</span>
+            <Link href="/contact" className="hover:text-primary">Contact Us</Link>
           </div>
         </div>
       </footer>
