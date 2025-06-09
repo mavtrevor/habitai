@@ -37,23 +37,37 @@ export default function ContactPage() {
     resolver: zodResolver(contactFormSchema),
   });
 
+  const encode = (data: { [key: string]: string | number | boolean }) => {
+    return Object.keys(data)
+      .map(key => encodeURIComponent(key) + "=" + encodeURIComponent(data[key]))
+      .join("&");
+  }
+
   const onSubmit: SubmitHandler<ContactFormValues> = async (data) => {
     setIsSubmitting(true);
-    // For Netlify forms, the submission is typically handled by Netlify's backend
-    // when the form has the 'data-netlify="true"' attribute and is deployed on Netlify.
-    // Here, we'll simulate a successful submission for demonstration purposes in other environments.
 
-    console.log('Contact form data:', data);
+    try {
+      await fetch("/", { // Netlify processes forms submitted to the page they are on
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: encode({ "form-name": "contact", ...data })
+      });
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast({
-      title: 'Message Sent!',
-      description: 'Thank you for contacting us. We will get back to you shortly.',
-    });
-    reset(); // Clear the form
-    setIsSubmitting(false);
+      toast({
+        title: 'Message Sent!',
+        description: 'Thank you for contacting us. We will get back to you shortly.',
+      });
+      reset();
+    } catch (error) {
+      console.error("Error submitting Netlify form:", error);
+      toast({
+        title: 'Error Sending Message',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -73,23 +87,23 @@ export default function ContactPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Add name="contact" for Netlify form identification if desired, along with data-netlify="true" */}
           <form
-            name="contact"
+            name="contact" // This name must match the "form-name" in the body
             method="POST"
             data-netlify="true"
-            data-netlify-honeypot="bot-field" // Optional honeypot field
-            onSubmit={handleSubmit(onSubmit)}
+            data-netlify-honeypot="bot-field"
+            onSubmit={handleSubmit(onSubmit)} // react-hook-form handles event.preventDefault()
             className="space-y-6"
           >
+            {/* Hidden input for Netlify to identify the form during POST if JS is used */}
+            <input type="hidden" name="form-name" value="contact" />
             {/* Hidden input for Netlify honeypot */}
             <p className="hidden">
               <label>
-                Don’t fill this out if you’re human: <input name="bot-field" />
+                Don’t fill this out if you’re human: <input name="bot-field" {...register('bot-field' as any)} />
               </label>
             </p>
-            {/* Hidden input for Netlify form name */}
-            <input type="hidden" name="form-name" value="contact" />
+            
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
