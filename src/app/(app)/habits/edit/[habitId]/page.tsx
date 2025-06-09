@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client';
 import { HabitCreatorForm } from '@/components/habits/habit-creator-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getHabitById } from '@/lib/firebase';
@@ -27,7 +27,8 @@ export default function EditHabitPage() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth();
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
