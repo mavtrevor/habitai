@@ -146,7 +146,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-// Dummy pages for links
-export function PrivacyPage() { return <div>Privacy Policy Page</div> }
-export function TermsPage() { return <div>Terms of Service Page</div> }
