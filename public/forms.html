@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Netlify Form Definitions</title>
+</head>
+<body>
+    <!-- This form is purely for Netlify's build-time detection. -->
+    <!-- It should mirror the main contact form's structure and name attributes. -->
+    <form name="contact" data-netlify="true" data-netlify-honeypot="bot-field" hidden>
+        <input type="text" name="name" aria-label="Name" />
+        <input type="email" name="email" aria-label="Email" />
+        <input type="text" name="subject" aria-label="Subject" />
+        <textarea name="message" aria-label="Message"></textarea>
+        <input name="bot-field" aria-label="Bot field" />
+    </form>
+</body>
+</html>
