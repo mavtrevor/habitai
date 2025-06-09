@@ -11,6 +11,7 @@ export interface UserProfile {
   createdAt: string; // ISO date string, from Firebase Auth or Firestore
   avatarUrl?: string; // From Firebase Auth or Firestore
   earnedBadgeIds?: string[]; // Array of IDs of earned badges
+  lastUpdatedAt?: string; // ISO date string
 }
 
 export interface Habit {
@@ -49,6 +50,7 @@ export interface Challenge {
   dataAiHint?: string;
   category?: string;
   createdAt: string; // ISO date string, server timestamp
+  lastUpdatedAt?: string; // ISO date string
 }
 
 export interface CommunityPost {

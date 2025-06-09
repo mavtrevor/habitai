@@ -17,7 +17,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
-  deleteDoc as firebaseDeleteDoc, // Renamed to avoid conflict
+  deleteDoc as firebaseDeleteDoc,
   query,
   where,
   orderBy,
@@ -36,11 +36,56 @@ import type { UserProfile, Habit, CommunityPost, Challenge, Badge, Notification 
 // Actual Genkit flow imports
 import { generateAIInsights as genkitGenerateAIInsights, type GenerateAIInsightsInput, type GenerateAIInsightsOutput } from '@/ai/flows/generate-ai-insights';
 import { suggestHabitMicroTask as genkitSuggestHabitMicroTask, type SuggestHabitMicroTaskInput, type SuggestHabitMicroTaskOutput } from '@/ai/flows/suggest-habit-micro-task';
-// import { generateChallengeImage as genkitGenerateChallengeImage, type GenerateChallengeImageInput, type GenerateChallengeImageOutput } from '@/ai/flows/generate-challenge-image-flow';
 import { getPexelsImageForChallenge } from '@/app/(app)/challenges/actions';
 
 
+// --- Firebase Auth Wrappers ---
+
+export const signInWithEmail = async (email: string, pass: string): Promise<FirebaseAuthUser> => {
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  const userCredential = await signInWithEmailAndPassword(authInstance, email, pass);
+  await getUserProfile(userCredential.user.uid); // Ensure profile exists or is created
+  return userCredential.user;
+};
+
+export const signUpWithEmail = async (name: string, email: string, pass: string): Promise<FirebaseAuthUser> => {
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  const userCredential = await createUserWithEmailAndPassword(authInstance, email, pass);
+  const user = userCredential.user;
+
+  await firebaseUpdateProfile(user, { displayName: name });
+  await createUserProfileDocument(user, { name });
+
+  await firebaseSendEmailVerification(user);
+  await firebaseSignOut(authInstance);
+  return user;
+};
+
+export const signInWithGoogle = async (): Promise<FirebaseAuthUser> => {
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  const provider = new GoogleAuthProvider();
+  const result = await signInWithPopup(authInstance, provider);
+  await createUserProfileDocument(result.user);
+  return result.user;
+};
+
+export const signOut = async (): Promise<void> => {
+  const authInstance = getAuth();
+  if (!authInstance) throw new Error("Firebase auth not initialized");
+  await firebaseSignOut(authInstance);
+};
+
+export const sendEmailVerification = async (user: FirebaseAuthUser): Promise<void> => {
+  if (!user) throw new Error("User object required for sending verification email.");
+  await firebaseSendEmailVerification(user);
+};
+
+
 // --- User Profile ---
+
 export const createUserProfileDocument = async (user: FirebaseAuthUser, additionalData: Partial<UserProfile> = {}) => {
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
@@ -49,13 +94,16 @@ export const createUserProfileDocument = async (user: FirebaseAuthUser, addition
 
   if (!userSnapshot.exists()) {
     const { email, displayName, photoURL, metadata } = user;
-    const createdAt = metadata.creationTime ? new Date(metadata.creationTime).toISOString() : new Date().toISOString();
+    const now = Timestamp.now().toDate().toISOString();
+    const createdAt = metadata.creationTime ? new Date(metadata.creationTime).toISOString() : now;
+
     const profileData: UserProfile = {
       id: user.uid,
       name: displayName || additionalData.name || 'New User',
       email: email || '',
       avatarUrl: photoURL || defaultUserSchema.avatarUrl,
       createdAt: createdAt,
+      lastUpdatedAt: now,
       timezone: additionalData.timezone || defaultUserSchema.timezone,
       preferences: additionalData.preferences || defaultUserSchema.preferences,
       earnedBadgeIds: [],
@@ -100,6 +148,8 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
   const userRef = doc(firestoreInstance, `users/${userId}`);
+
+  // Ensure only defined values are passed to updateDoc
   const cleanData = Object.entries(data).reduce((acc, [key, value]) => {
     if (value !== undefined) {
       (acc as any)[key] = value;
@@ -107,55 +157,18 @@ export const updateUserProfile = async (userId: string, data: Partial<UserProfil
     return acc;
   }, {} as Partial<UserProfile>);
 
-  await updateDoc(userRef, cleanData);
+  const dataWithTimestamp = {
+    ...cleanData,
+    lastUpdatedAt: Timestamp.now().toDate().toISOString(),
+  };
+
+  await updateDoc(userRef, dataWithTimestamp);
   return getUserProfile(userId);
-};
-
-// --- Firebase Auth wrappers ---
-export const signInWithEmail = async (email: string, pass: string): Promise<FirebaseAuthUser> => {
-  const authInstance = getAuth();
-  if (!authInstance) throw new Error("Firebase auth not initialized");
-  const userCredential = await signInWithEmailAndPassword(authInstance, email, pass);
-  await getUserProfile(userCredential.user.uid); // Ensure profile exists or is created
-  return userCredential.user;
-};
-
-export const signUpWithEmail = async (name: string, email: string, pass: string): Promise<FirebaseAuthUser> => {
-  const authInstance = getAuth();
-  if (!authInstance) throw new Error("Firebase auth not initialized");
-  const userCredential = await createUserWithEmailAndPassword(authInstance, email, pass);
-  const user = userCredential.user;
-
-  await firebaseUpdateProfile(user, { displayName: name });
-  await createUserProfileDocument(user, { name }); 
-  
-  await firebaseSendEmailVerification(user);
-  await firebaseSignOut(authInstance); 
-  return user;
-};
-
-export const signInWithGoogle = async (): Promise<FirebaseAuthUser> => {
-  const authInstance = getAuth();
-  if (!authInstance) throw new Error("Firebase auth not initialized");
-  const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(authInstance, provider);
-  await createUserProfileDocument(result.user); 
-  return result.user;
-};
-
-export const signOut = async (): Promise<void> => {
-  const authInstance = getAuth();
-  if (!authInstance) throw new Error("Firebase auth not initialized");
-  await firebaseSignOut(authInstance);
-};
-
-export const sendEmailVerification = async (user: FirebaseAuthUser): Promise<void> => {
-  if (!user) throw new Error("User object required for sending verification email.");
-  await firebaseSendEmailVerification(user);
 };
 
 
 // --- Habits ---
+
 export const getUserHabits = async (userId: string): Promise<Habit[]> => {
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
@@ -183,14 +196,14 @@ export const addHabit = async (habitData: Omit<Habit, 'id' | 'createdAt' | 'prog
   if (!user) throw new Error("User not authenticated");
 
   const habitsRef = collection(firestoreInstance, `users/${user.uid}/habits`);
-  const now = Timestamp.now();
+  const now = Timestamp.now().toDate().toISOString();
   const newHabitPayload = {
     ...habitData,
     userId: user.uid,
     progress: [],
     streak: 0,
-    createdAt: now.toDate().toISOString(),
-    lastUpdatedAt: now.toDate().toISOString(),
+    createdAt: now,
+    lastUpdatedAt: now,
   };
   const docRef = await addDoc(habitsRef, newHabitPayload);
   return { id: docRef.id, ...newHabitPayload } as Habit;
@@ -202,16 +215,18 @@ export const updateHabit = async (habitData: Habit): Promise<Habit | undefined> 
   if (!firestoreInstance) throw new Error("Firestore not initialized");
   const user = authInstance.currentUser;
   if (!user || user.uid !== habitData.userId) throw new Error("Unauthorized or mismatched user");
-  
+
   const habitRef = doc(firestoreInstance, `users/${user.uid}/habits/${habitData.id}`);
   const updatedPayload = {
     ...habitData,
     lastUpdatedAt: Timestamp.now().toDate().toISOString(),
   };
-  const { id, ...payloadWithoutId } = updatedPayload; 
+  // Firestore updateDoc expects an object of fields to update, not the full object with id.
+  const { id, ...payloadWithoutId } = updatedPayload;
   await updateDoc(habitRef, payloadWithoutId);
-  return updatedPayload;
+  return updatedPayload; // Return the full habit object with the new timestamp
 };
+
 
 export const updateHabitProgress = async (habitId: string, dateISO: string, completed: boolean): Promise<Habit | undefined> => {
   const firestoreInstance = getFirestore();
@@ -233,29 +248,44 @@ export const updateHabitProgress = async (habitId: string, dateISO: string, comp
   const progressIndex = progress.findIndex(p => p.date.startsWith(dateOnly));
 
   if (progressIndex > -1) {
+    // Only update streak if completion status actually changes
     if (progress[progressIndex].completed !== completed) {
-        progress[progressIndex] = { ...progress[progressIndex], completed, date: dateISO };
-        if (completed) streak++; else if (streak > 0) streak--;
+        progress[progressIndex] = { ...progress[progressIndex], completed, date: dateISO }; // Update date to full ISO string in case it was just dateOnly
+        if (completed) streak++; else if (streak > 0) streak--; // Decrement streak only if it was positive
     }
   } else {
+    // New progress entry for the day
     progress.push({ date: dateISO, completed });
     if (completed) streak++;
   }
-  
-  await updateDoc(habitRef, { 
-    progress, 
+
+  const updatedFields = {
+    progress,
     streak,
     lastUpdatedAt: Timestamp.now().toDate().toISOString(),
-  });
-  return { ...habit, progress, streak, lastUpdatedAt: Timestamp.now().toDate().toISOString() };
+  };
+
+  await updateDoc(habitRef, updatedFields);
+  return { ...habit, ...updatedFields }; // Return the merged habit data
+};
+
+export const deleteHabit = async (userId: string, habitId: string): Promise<void> => {
+    const firestoreInstance = getFirestore();
+    if (!firestoreInstance) throw new Error("Firestore not initialized");
+    if (!userId || !habitId) throw new Error("User ID and Habit ID are required");
+
+    const habitRef = doc(firestoreInstance, `users/${userId}/habits/${habitId}`);
+    await firebaseDeleteDoc(habitRef);
 };
 
 
 // --- Community Posts ---
+
 export const getCommunityPosts = async (lastVisiblePost?: CommunityPost, count: number = 10): Promise<CommunityPost[]> => {
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
   const postsFbCollection = collection(firestoreInstance, 'posts');
+  // TODO: Implement pagination using lastVisiblePost if provided
   let q = query(postsFbCollection, orderBy('createdAt', 'desc'), limit(count));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as CommunityPost));
@@ -267,12 +297,12 @@ export const addCommunityPost = async (postData: Omit<CommunityPost, 'id' | 'cre
   if (!firestoreInstance) throw new Error("Firestore not initialized");
   const user = authInstance.currentUser;
   if (!user) throw new Error("User not authenticated");
-  
+
   const userProfile = await getUserProfile(user.uid);
   if (!userProfile) throw new Error("User profile not found");
 
   const postsFbCollection = collection(firestoreInstance, 'posts');
-  const now = Timestamp.now();
+  const now = Timestamp.now().toDate().toISOString();
   const newPostPayload = {
     ...postData,
     userId: user.uid,
@@ -280,7 +310,7 @@ export const addCommunityPost = async (postData: Omit<CommunityPost, 'id' | 'cre
     userAvatarUrl: userProfile.avatarUrl || '',
     likes: [],
     commentsCount: 0,
-    createdAt: now.toDate().toISOString(),
+    createdAt: now,
   };
   const docRef = await addDoc(postsFbCollection, newPostPayload);
   return { id: docRef.id, ...newPostPayload };
@@ -309,12 +339,14 @@ export const likePost = async (postId: string, userIdToToggle: string): Promise<
 export const deletePost = async (postId: string): Promise<void> => {
     const firestoreInstance = getFirestore();
     if (!firestoreInstance) throw new Error("Firestore not initialized");
+    // Optional: Add check if current user is the post owner before deleting
     const postRef = doc(firestoreInstance, 'posts', postId);
     await firebaseDeleteDoc(postRef);
 };
 
 
 // --- Challenges ---
+
 export const getChallenges = async (): Promise<Challenge[]> => {
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
@@ -333,7 +365,7 @@ export const getChallengeById = async (challengeId: string): Promise<Challenge |
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as Challenge : undefined;
 };
 
-export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview'>): Promise<Challenge> => {
+export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview' | 'lastUpdatedAt'>): Promise<Challenge> => {
   const firestoreInstance = getFirestore();
   const authInstance = getAuth();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
@@ -346,10 +378,9 @@ export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'c
   if (!finalImageUrl && challengeDataInput.title) {
     console.log("No image URL provided by user, attempting Pexels fetch...");
     try {
-      // Construct a query for Pexels. Use title, category, and hint.
       const pexelsQueryParts = [challengeDataInput.title, challengeDataInput.category, challengeDataInput.dataAiHint].filter(Boolean);
       const pexelsQuery = pexelsQueryParts.join(' ').trim();
-      
+
       if (pexelsQuery) {
         const pexelsImageUrl = await getPexelsImageForChallenge(pexelsQuery);
         if (pexelsImageUrl) {
@@ -368,25 +399,85 @@ export const addChallenge = async (challengeDataInput: Omit<Challenge, 'id' | 'c
       finalImageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(challengeDataInput.title)}`;
     }
   } else if (!finalImageUrl) {
-    // Fallback if no user-provided URL and title is somehow missing (though form should validate title)
     finalImageUrl = `https://placehold.co/600x400.png?text=Challenge`;
   }
 
-
   const challengesFbCollection = collection(firestoreInstance, 'challenges');
-  const now = Timestamp.now();
-  const newChallengePayload = {
+  const now = Timestamp.now().toDate().toISOString();
+  const newChallengePayload: Omit<Challenge, 'id'> = {
     ...challengeDataInput,
     imageUrl: finalImageUrl,
-    dataAiHint: finalDataAiHint.split(' ').slice(0, 2).join(' '), // Ensure hint is max 2 words for the <img> tag
+    dataAiHint: finalDataAiHint.split(' ').slice(0, 2).join(' '),
     creatorId: user.uid,
-    participantIds: [user.uid], 
-    leaderboardPreview: [], // Default to empty, can be populated by a separate process/function
-    createdAt: now.toDate().toISOString(),
+    participantIds: [user.uid],
+    leaderboardPreview: [],
+    createdAt: now,
+    lastUpdatedAt: now,
   };
   const docRef = await addDoc(challengesFbCollection, newChallengePayload);
   return { id: docRef.id, ...newChallengePayload };
 };
+
+export const updateChallenge = async (challengeId: string, dataToUpdate: Partial<Omit<Challenge, 'id' | 'createdAt' | 'creatorId' | 'participantIds' | 'leaderboardPreview' | 'lastUpdatedAt'>>): Promise<Challenge | undefined> => {
+  const firestoreInstance = getFirestore();
+  const authInstance = getAuth();
+  if (!firestoreInstance) throw new Error("Firestore not initialized");
+  const user = authInstance.currentUser;
+  if (!user) throw new Error("User not authenticated");
+
+  const challengeRef = doc(firestoreInstance, 'challenges', challengeId);
+  const challengeSnap = await getDoc(challengeRef);
+  if (!challengeSnap.exists() || challengeSnap.data().creatorId !== user.uid) {
+    throw new Error("Challenge not found or user is not the creator.");
+  }
+
+  let finalData = { ...dataToUpdate };
+
+  // Handle image update logic (similar to addChallenge)
+  if (dataToUpdate.imageUrl === '' || (dataToUpdate.imageUrl === undefined && dataToUpdate.title)) { // If imageUrl is explicitly cleared or not provided and title exists
+    console.log("Image URL cleared or not provided, attempting Pexels fetch for update...");
+    try {
+      const queryTitle = dataToUpdate.title || challengeSnap.data().title;
+      const queryCategory = dataToUpdate.category || challengeSnap.data().category;
+      const queryHint = dataToUpdate.dataAiHint || challengeSnap.data().dataAiHint;
+      const pexelsQueryParts = [queryTitle, queryCategory, queryHint].filter(Boolean);
+      const pexelsQuery = pexelsQueryParts.join(' ').trim();
+
+      if (pexelsQuery) {
+        const pexelsImageUrl = await getPexelsImageForChallenge(pexelsQuery);
+        if (pexelsImageUrl) {
+          finalData.imageUrl = pexelsImageUrl;
+          finalData.dataAiHint = (queryHint || queryCategory || 'challenge image').split(' ').slice(0,2).join(' ');
+        } else {
+          finalData.imageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(queryTitle)}`;
+          finalData.dataAiHint = (queryHint || queryCategory || 'challenge image').split(' ').slice(0,2).join(' ');
+        }
+      } else {
+        finalData.imageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(queryTitle || "Challenge")}`;
+      }
+    } catch (pexelsError) {
+      console.error("Pexels API call failed during update, using placeholder:", pexelsError);
+      finalData.imageUrl = `https://placehold.co/600x400.png?text=${encodeURIComponent(dataToUpdate.title || challengeSnap.data().title)}`;
+    }
+  } else if (dataToUpdate.imageUrl && dataToUpdate.dataAiHint === undefined) {
+    // If user provided an image URL but no new hint, try to keep old hint or derive
+    finalData.dataAiHint = challengeSnap.data().dataAiHint || dataToUpdate.category?.toLowerCase() || 'challenge image';
+  }
+  if (finalData.dataAiHint) {
+      finalData.dataAiHint = finalData.dataAiHint.split(' ').slice(0,2).join(' ');
+  }
+
+
+  const updatePayload = {
+    ...finalData,
+    lastUpdatedAt: Timestamp.now().toDate().toISOString(),
+  };
+
+  await updateDoc(challengeRef, updatePayload);
+  const updatedChallengeSnap = await getDoc(challengeRef);
+  return updatedChallengeSnap.exists() ? { id: updatedChallengeSnap.id, ...updatedChallengeSnap.data() } as Challenge : undefined;
+};
+
 
 export const joinChallenge = async (challengeId: string, userId: string): Promise<Challenge | undefined> => {
   const firestoreInstance = getFirestore();
@@ -395,12 +486,12 @@ export const joinChallenge = async (challengeId: string, userId: string): Promis
   if (!challengeId) throw new Error("Challenge ID is required");
 
   const challengeRef = doc(firestoreInstance, 'challenges', challengeId);
-  
+
   try {
     await updateDoc(challengeRef, {
-      participantIds: arrayUnion(userId)
+      participantIds: arrayUnion(userId),
+      lastUpdatedAt: Timestamp.now().toDate().toISOString(),
     });
-    // Re-fetch the challenge to return its updated state
     const updatedChallengeSnap = await getDoc(challengeRef);
     if (updatedChallengeSnap.exists()) {
       return { id: updatedChallengeSnap.id, ...updatedChallengeSnap.data() } as Challenge;
@@ -408,18 +499,51 @@ export const joinChallenge = async (challengeId: string, userId: string): Promis
     return undefined;
   } catch (error) {
     console.error("Error joining challenge:", error);
-    throw error; // Re-throw to be caught by the UI
+    throw error;
   }
+};
+
+export const deleteChallenge = async (challengeId: string): Promise<void> => {
+    const firestoreInstance = getFirestore();
+    const authInstance = getAuth();
+    if (!firestoreInstance) throw new Error("Firestore not initialized");
+    const user = authInstance.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    const challengeRef = doc(firestoreInstance, 'challenges', challengeId);
+    const challengeSnap = await getDoc(challengeRef);
+
+    if (!challengeSnap.exists()) {
+        throw new Error("Challenge not found.");
+    }
+    if (challengeSnap.data().creatorId !== user.uid) {
+        throw new Error("User is not authorized to delete this challenge.");
+    }
+    await firebaseDeleteDoc(challengeRef);
 };
 
 
 // --- Badges ---
+
 export const getUserBadges = async (userId: string): Promise<Badge[]> => {
   const userProfile = await getUserProfile(userId);
-  if (!userProfile || !userProfile.earnedBadgeIds) return [];
+  if (!userProfile || !userProfile.earnedBadgeIds || userProfile.earnedBadgeIds.length === 0) return [];
 
-  return staticBadgeDefinitions.filter(badgeDef => userProfile.earnedBadgeIds!.includes(badgeDef.id))
-    .map(badge => ({...badge, earnedAt: userProfile.createdAt })); // Note: earnedAt should be specific to badge, not user creation. This is a simplification.
+  // For each earned badge ID, find its definition in staticBadgeDefinitions
+  // and map it to a Badge object, potentially adding the earnedAt date if stored per badge.
+  // For simplicity, we'll use the user's creation date as a placeholder for earnedAt
+  // if specific earnedAt dates per badge aren't stored.
+  return userProfile.earnedBadgeIds
+    .map(badgeId => {
+      const badgeDef = staticBadgeDefinitions.find(b => b.id === badgeId);
+      if (badgeDef) {
+        // TODO: Ideally, earnedAt would be stored with each badge ID in the user's profile.
+        // For now, using user's creation date as a fallback or a generic date.
+        return { ...badgeDef, earnedAt: userProfile.lastUpdatedAt || userProfile.createdAt };
+      }
+      return null;
+    })
+    .filter(badge => badge !== null) as Badge[];
 };
 
 export const awardBadge = async (userId: string, badgeId: string): Promise<void> => {
@@ -427,14 +551,15 @@ export const awardBadge = async (userId: string, badgeId: string): Promise<void>
     if (!firestoreInstance) throw new Error("Firestore not initialized");
     const userRef = doc(firestoreInstance, `users/${userId}`);
     await updateDoc(userRef, {
-        earnedBadgeIds: arrayUnion(badgeId)
+        earnedBadgeIds: arrayUnion(badgeId),
+        lastUpdatedAt: Timestamp.now().toDate().toISOString(),
     });
     const badge = staticBadgeDefinitions.find(b => b.id === badgeId);
     if (badge) {
         addNotification(userId, {
             message: `Congratulations! You've earned the "${badge.name}" badge!`,
             type: 'milestone',
-            link: '/profile?tab=badges',
+            link: '/profile?tab=badges', // Link to the badges tab on profile
             relatedEntityId: badgeId,
         });
     }
@@ -442,6 +567,7 @@ export const awardBadge = async (userId: string, badgeId: string): Promise<void>
 
 
 // --- AI Flow Calls ---
+
 export const generateAIInsights = async (input: GenerateAIInsightsInput): Promise<GenerateAIInsightsOutput> => {
   return genkitGenerateAIInsights(input);
 };
@@ -451,7 +577,9 @@ export const suggestHabitMicroTask = async (input: SuggestHabitMicroTaskInput): 
   return result;
 };
 
+
 // --- Notifications ---
+
 export const getNotifications = async (userId: string, count: number = 10): Promise<Notification[]> => {
   const firestoreInstance = getFirestore();
   if (!firestoreInstance) throw new Error("Firestore not initialized");
@@ -467,12 +595,12 @@ export const addNotification = async (userId: string, notificationData: Omit<Not
   if(!firestoreInstance) throw new Error("Firestore not initialized");
   if(!userId) throw new Error("User ID is required to add a notification.");
   const notificationsRef = collection(firestoreInstance, `users/${userId}/notifications`);
-  const now = Timestamp.now();
+  const now = Timestamp.now().toDate().toISOString();
   const newNotificationPayload = {
     ...notificationData,
     userId,
     read: false,
-    createdAt: now.toDate().toISOString(),
+    createdAt: now,
   };
   const docRef = await addDoc(notificationsRef, newNotificationPayload);
   return { id: docRef.id, ...newNotificationPayload };
@@ -499,8 +627,8 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
     const notificationsRef = collection(firestoreInstance, `users/${userId}/notifications`);
     const q = query(notificationsRef, where("read", "==", false));
     const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) return true;
+
+    if (snapshot.empty) return true; // No unread notifications
 
     const batch = writeBatch(firestoreInstance);
     snapshot.docs.forEach(docData => {
@@ -515,4 +643,3 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
         return false;
     }
 };
-
