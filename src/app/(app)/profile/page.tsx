@@ -3,12 +3,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getAuth } from '@/lib/firebase/client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getUserProfile, getUserBadges, getChallenges as fetchChallenges, getUserHabits } from "@/lib/firebase";
+import { getUserProfile, getUserBadges, getChallenges as fetchChallenges, getUserHabits, deleteChallenge as firebaseDeleteChallenge } from "@/lib/firebase";
 import type { UserProfile as UserProfileType, Badge as BadgeType, Challenge as ChallengeType, Habit } from '@/types';
 import { UserSettingsForm } from "@/components/profile/user-settings-form";
 import { BadgesList } from "@/components/profile/badges-list";
@@ -17,6 +17,7 @@ import { HabitProgressCard } from "@/components/dashboard/habit-progress-card";
 import { Edit3, User, ShieldCheck, Trophy, Activity, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
@@ -27,9 +28,11 @@ export default function ProfilePage() {
   const [currentFirebaseUser, setCurrentFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true); // For profile data, badges, etc.
+  const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const authInstance = getAuth(); // Correctly get the auth instance
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setCurrentFirebaseUser(user);
       setIsAuthLoading(false);
     });
@@ -50,12 +53,12 @@ export default function ProfilePage() {
       setIsDataLoading(true);
       try {
         const fetchedUserProfile = await getUserProfile(currentFirebaseUser.uid);
-        setUserProfile(fetchedUserProfile); // This can be null if profile doesn't exist
+        setUserProfile(fetchedUserProfile); 
 
-        if (fetchedUserProfile) { // Only fetch related data if profile exists
+        if (fetchedUserProfile) { 
           const [fetchedBadges, allChallenges, fetchedHabits] = await Promise.all([
             getUserBadges(currentFirebaseUser.uid),
-            fetchChallenges(), // Assuming getChallenges is general and not user-specific at fetch time
+            fetchChallenges(), 
             getUserHabits(currentFirebaseUser.uid)
           ]);
           
@@ -63,7 +66,6 @@ export default function ProfilePage() {
           setUserHabits(fetchedHabits);
           setJoinedChallenges(allChallenges.filter(c => c.participantIds.includes(currentFirebaseUser.uid)));
         } else {
-            // Handle case where user exists in Auth but not in Firestore profiles
             setBadges([]);
             setJoinedChallenges([]);
             setUserHabits([]);
@@ -71,19 +73,23 @@ export default function ProfilePage() {
 
       } catch (error) {
         console.error("Error fetching profile data:", error);
-        setUserProfile(null); // Reset on error
+        setUserProfile(null); 
       } finally {
         setIsDataLoading(false);
       }
     };
     
-    // Only fetch data if auth state is determined (i.e., not undefined)
     if (currentFirebaseUser !== undefined) {
       fetchProfileData();
     }
   }, [currentFirebaseUser]);
 
-  const getInitials = (name: string | undefined) => {
+  const handleChallengeDeleted = (challengeId: string) => {
+    setJoinedChallenges(prevChallenges => prevChallenges.filter(c => c.id !== challengeId));
+    toast({ title: "Challenge Removed", description: "The challenge has been removed from your list." });
+  };
+
+  const getInitials = (name: string | undefined | null) => {
     if (!name) return 'U';
     const names = name.split(' ');
     if (names.length === 1) return names[0].substring(0, 2).toUpperCase();
@@ -109,7 +115,6 @@ export default function ProfilePage() {
     );
   }
   
-  // User is authenticated, now check data loading status
   if (isDataLoading) {
      return (
       <div className="space-y-8">
@@ -157,7 +162,7 @@ export default function ProfilePage() {
             <div>
               <h1 className="text-3xl font-bold font-headline">{userProfile.name}</h1>
               <p className="opacity-90">{userProfile.email}</p>
-              <p className="text-xs opacity-80 mt-1">Member since {new Date(userProfile.createdAt).toLocaleDateString()}</p>
+              {userProfile.createdAt && <p className="text-xs opacity-80 mt-1">Member since {new Date(userProfile.createdAt).toLocaleDateString()}</p>}
             </div>
           </div>
         </CardHeader>
@@ -228,7 +233,12 @@ export default function ProfilePage() {
                 {joinedChallenges.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {joinedChallenges.map(challenge => (
-                    <ChallengeCard key={challenge.id} challenge={challenge} />
+                    <ChallengeCard 
+                        key={challenge.id} 
+                        challenge={challenge} 
+                        currentUserId={currentFirebaseUser?.uid}
+                        onChallengeDeleted={handleChallengeDeleted}
+                    />
                     ))}
                 </div>
                 ) : (
@@ -246,3 +256,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

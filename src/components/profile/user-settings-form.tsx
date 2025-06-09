@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '../ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { updateUserProfile } from '@/lib/firebase'; // Use real Firebase function
-import { auth } from '@/lib/firebase/client'; // For current user ID
+import { getAuth } from '@/lib/firebase/client'; // For current user ID
 
 interface UserSettingsFormProps {
   user: UserProfile; // Initial user data passed as prop
@@ -61,7 +61,8 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
     event.preventDefault();
     setIsLoading(true);
 
-    const currentAuthUser = auth.currentUser;
+    const authInstance = getAuth();
+    const currentAuthUser = authInstance.currentUser;
     if (!currentAuthUser || currentAuthUser.uid !== initialUser.id) {
         toast({ title: 'Authentication Error', description: 'Could not verify user. Please re-login.', variant: 'destructive'});
         setIsLoading(false);
@@ -74,7 +75,8 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
       preferences: {
         preferredTimes,
         goalCategories: selectedGoalCategories,
-      }
+      },
+      lastUpdatedAt: new Date().toISOString(),
     };
     
     try {
