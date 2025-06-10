@@ -36,7 +36,7 @@ const ProgressChartComponent: FC<ProgressChartProps> = ({ weeklyProgress }) => {
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[250px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}> {/* Changed left margin from -25 to 0 */}
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis 
                 dataKey="week" 

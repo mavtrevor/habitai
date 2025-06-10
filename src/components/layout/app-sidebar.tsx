@@ -81,10 +81,10 @@ export function AppSidebar() {
   if (!hydrated && !isMobile) { 
     return (
       <Sidebar>
-        <SidebarHeader>
+        <SidebarHeader className="flex-shrink-0"> {/* Added flex-shrink-0 */}
           <Logo showText={open} className="mb-2"/>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent> {/* Relies on default flex-1 and overflow-auto */}
           <SidebarMenu>
             {[...Array(5)].map((_,i) => <SidebarMenuSkeleton key={i} showIcon />)}
           </SidebarMenu>
@@ -95,11 +95,12 @@ export function AppSidebar() {
   
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 flex-shrink-0"> {/* Ensure header doesn't grow */}
         <Logo showText={open} />
       </SidebarHeader>
 
-      <SidebarContent className="flex-grow p-2">
+      {/* SidebarContent already has flex-1 and overflow-auto from its definition in ui/sidebar.tsx */}
+      <SidebarContent className="p-2"> {/* Just add padding */}
         <SidebarMenu>
           {mainNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
@@ -121,9 +122,9 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       
-      <Separator className="my-2"/>
+      <Separator className="my-2 flex-shrink-0" /> {/* Ensure separator doesn't grow */}
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2 flex-shrink-0"> {/* Ensure footer doesn't grow and content is visible */}
         <SidebarMenu>
             {userNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
