@@ -1,6 +1,17 @@
 
 import type {NextConfig} from 'next';
 
+const withPWA = require("@ducanh2912/next-pwa").default({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === "development", // Disable PWA in development
+  // You can add more PWA options here if needed
+  //  fallbacks: {
+  //    document: '/offline', // if you want to fallback to a custom page
+  //  }
+});
+
 const nextConfig: NextConfig = {
   /* config options here */
   typescript: {
@@ -27,4 +38,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
