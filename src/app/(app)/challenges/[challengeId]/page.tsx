@@ -117,7 +117,14 @@ export default function ChallengeDetailPage() {
       }
     } catch (err: any) {
       console.error("Error joining challenge:", err);
-      toast({ title: "Join Failed", description: err.message || "Could not join the challenge.", variant: "destructive"});
+      let description = "Could not join the challenge.";
+      if (err.message) {
+        description = err.message;
+      }
+      if (err.code === 'permission-denied' || (err.message && (err.message.toLowerCase().includes('permission') || err.message.toLowerCase().includes('denied')))) {
+        description = "Permission denied. Please check Firestore security rules for challenge updates. " + (err.message || "");
+      }
+      toast({ title: "Join Failed", description, variant: "destructive"});
     } finally {
       setIsJoining(false);
     }
