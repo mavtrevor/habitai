@@ -1,18 +1,25 @@
 
 import type {NextConfig} from 'next';
 
-const withPWA = require("@ducanh2912/next-pwa").default({
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Configuration for next-pwa
+const pwaConfig = {
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development", // Disable PWA in development
+  // Explicitly disable PWA features unless it's a production build
+  disable: !isProduction, 
   // You can add more PWA options here if needed
   //  fallbacks: {
   //    document: '/offline', // if you want to fallback to a custom page
   //  }
-});
+};
 
-const nextConfig: NextConfig = {
+const withPWA = require("@ducanh2912/next-pwa").default(pwaConfig);
+
+// Base Next.js configuration
+const baseConfig: NextConfig = {
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
@@ -36,6 +43,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // If you have Turbopack-specific options, they can go here,
+  // but usually, Turbopack works by default without explicit experimental flags for basic features.
+  // experimental: {
+  //   turbo: {},
+  // },
 };
 
-export default withPWA(nextConfig);
+// Apply the PWA wrapper only in production
+export default isProduction ? withPWA(baseConfig) : baseConfig;
