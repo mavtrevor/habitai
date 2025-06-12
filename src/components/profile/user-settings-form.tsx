@@ -21,14 +21,13 @@ interface UserSettingsFormProps {
 const timezones = [
   "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Australia/Sydney",
   "America/Chicago", "Europe/Paris", "Asia/Dubai", "Pacific/Auckland"
-  // Add more common timezones or consider a library for a comprehensive list
 ];
 
 const goalCategories = ["Fitness", "Productivity", "Wellness", "Learning", "Finance", "Creativity", "Mindfulness", "Social"];
 
 export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
   const [name, setName] = useState(initialUser.name);
-  const [email, setEmail] = useState(initialUser.email); // Display only, not editable here
+  const [email, setEmail] = useState(initialUser.email);
   const [timezone, setTimezone] = useState(initialUser.timezone || '');
   const [preferredTimes, setPreferredTimes] = useState<string[]>(initialUser.preferences?.preferredTimes || []);
   const [selectedGoalCategories, setSelectedGoalCategories] = useState<string[]>(initialUser.preferences?.goalCategories || []);
@@ -44,24 +43,28 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
-
+  // Effect to subscribe to Firebase Auth state changes
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setFirebaseAuthUser(user);
-      if (user) {
-        const hasGoogleProvider = user.providerData.some(p => p.providerId === 'google.com');
-        const hasPasswordProvider = user.providerData.some(p => p.providerId === 'password');
-        setShowAddPasswordForm(hasGoogleProvider && !hasPasswordProvider);
-      } else {
-        setShowAddPasswordForm(false);
-      }
     });
     return () => unsubscribe();
-  }, []);
+  }, []); // Runs once on mount
+
+  // Effect to determine if the "Add Password" form should be shown
+  // This effect runs whenever firebaseAuthUser changes
+  useEffect(() => {
+    if (firebaseAuthUser) {
+      const hasGoogleProvider = firebaseAuthUser.providerData.some(p => p.providerId === 'google.com');
+      const hasPasswordProvider = firebaseAuthUser.providerData.some(p => p.providerId === 'password');
+      setShowAddPasswordForm(hasGoogleProvider && !hasPasswordProvider);
+    } else {
+      setShowAddPasswordForm(false);
+    }
+  }, [firebaseAuthUser]); // Dependency: firebaseAuthUser
 
 
-  // Effect to update form if initialUser prop changes (e.g. parent re-fetches)
   useEffect(() => {
     setName(initialUser.name);
     setEmail(initialUser.email);
@@ -127,15 +130,20 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
     }
 
     setIsSettingPassword(true);
+    const auth = getAuth();
     try {
       await linkEmailAndPasswordToCurrentUser(newPassword);
       toast({ title: 'Password Added', description: 'You can now sign in with your email and this password.' });
       setNewPassword('');
       setConfirmNewPassword('');
-      setShowAddPasswordForm(false); // Hide form after success
-      // Force re-fetch of provider data or update local state if necessary
-       const auth = getAuth();
-       setFirebaseAuthUser(auth.currentUser); // This might trigger the useEffect to re-evaluate showAddPasswordForm
+      
+      // Reload the user to get updated providerData and trigger the useEffect
+      if (auth.currentUser) {
+        await auth.currentUser.reload();
+        setFirebaseAuthUser(auth.currentUser); // This will trigger the useEffect to hide the form
+      } else {
+         setShowAddPasswordForm(false); // Fallback if currentUser is somehow null
+      }
     } catch (error: any) {
       toast({ title: 'Error Adding Password', description: error.message || 'Could not add password.', variant: 'destructive' });
     } finally {
