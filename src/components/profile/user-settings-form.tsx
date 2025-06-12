@@ -35,35 +35,14 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const [firebaseAuthUser, setFirebaseAuthUser] = useState<FirebaseAuthUser | null>(null);
+  // firebaseAuthUser is kept for potential other uses, though not strictly necessary for form visibility logic anymore
+  const [firebaseAuthUser, setFirebaseAuthUser] = useState<FirebaseAuthUser | null>(null); 
   const [showAddPasswordForm, setShowAddPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
-
-  // Effect to subscribe to Firebase Auth state changes
-  useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setFirebaseAuthUser(user);
-    });
-    return () => unsubscribe();
-  }, []); // Runs once on mount
-
-  // Effect to determine if the "Add Password" form should be shown
-  // This effect runs whenever firebaseAuthUser changes
-  useEffect(() => {
-    if (firebaseAuthUser) {
-      const hasGoogleProvider = firebaseAuthUser.providerData.some(p => p.providerId === 'google.com');
-      const hasPasswordProvider = firebaseAuthUser.providerData.some(p => p.providerId === 'password');
-      setShowAddPasswordForm(hasGoogleProvider && !hasPasswordProvider);
-    } else {
-      setShowAddPasswordForm(false);
-    }
-  }, [firebaseAuthUser]); // Dependency: firebaseAuthUser
-
 
   useEffect(() => {
     setName(initialUser.name);
@@ -72,6 +51,23 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
     setPreferredTimes(initialUser.preferences?.preferredTimes || []);
     setSelectedGoalCategories(initialUser.preferences?.goalCategories || []);
   }, [initialUser]);
+
+  // Combined useEffect to handle auth state and determine "Add Password" form visibility
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setFirebaseAuthUser(user); // Set the auth user state
+
+      if (user) {
+        const hasGoogleProvider = user.providerData.some(p => p.providerId === 'google.com');
+        const hasPasswordProvider = user.providerData.some(p => p.providerId === 'password');
+        setShowAddPasswordForm(hasGoogleProvider && !hasPasswordProvider);
+      } else {
+        setShowAddPasswordForm(false);
+      }
+    });
+    return () => unsubscribe(); // Cleanup subscription on unmount
+  }, []); // Empty dependency array means this effect runs once on mount and cleans up on unmount
 
 
   const handlePreferredTimeChange = (time: string) => {
@@ -137,12 +133,12 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
       setNewPassword('');
       setConfirmNewPassword('');
       
-      // Reload the user to get updated providerData and trigger the useEffect
+      // After successfully adding password, Firebase Auth state will change,
+      // and the onAuthStateChanged listener will update `showAddPasswordForm` to false.
+      // Explicitly reloading the user here ensures the providerData is immediately fresh for that listener.
       if (auth.currentUser) {
         await auth.currentUser.reload();
-        setFirebaseAuthUser(auth.currentUser); // This will trigger the useEffect to hide the form
-      } else {
-         setShowAddPasswordForm(false); // Fallback if currentUser is somehow null
+        // The onAuthStateChanged listener will pick up the change from reload and update UI.
       }
     } catch (error: any) {
       toast({ title: 'Error Adding Password', description: error.message || 'Could not add password.', variant: 'destructive' });
@@ -302,3 +298,4 @@ export function UserSettingsForm({ user: initialUser }: UserSettingsFormProps) {
     </div>
   );
 }
+
