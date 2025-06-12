@@ -57,14 +57,14 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
         if (user && !user.emailVerified) {
           setUnverifiedUserForResend(user); 
           toast({
-            title: 'Email Not Verified',
-            description: 'Please verify your email address before signing in. Check your inbox (and spam folder) for the verification link.',
+            title: 'Email Verification Required',
+            description: 'Your email address needs to be verified before you can sign in. Please check your inbox (and spam folder) for the verification link.',
             variant: 'destructive',
             duration: 10000, // Keep toast longer for action
             action: (
               <ToastAction
                 altText="Resend verification email"
-                onClick={handleResendVerificationEmail} // This is already memoized
+                onClick={handleResendVerificationEmail}
               >
                 Resend Email
               </ToastAction>
@@ -77,16 +77,14 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
         toast({ title: 'Login Successful', description: 'Welcome back!' });
         router.push('/dashboard');
       } else { 
-        // signUpWithEmail now handles profile creation in Firestore and email verification
         await signUpWithEmail(name, email, password); 
         toast({
           title: 'Signup Successful! Please Verify Your Email',
           description: `A verification email has been sent to ${email}. Please check your inbox (and spam folder) and click the verification link before signing in.`,
           duration: 10000,
         });
-        setMode('login'); // Switch to login mode
-        setPassword(''); // Clear password for security
-        // Email field can remain for user convenience if they want to try logging in after verification
+        setMode('login'); 
+        setPassword(''); 
       }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
@@ -94,7 +92,7 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
-          case 'auth/invalid-credential': // Catches various invalid credential issues
+          case 'auth/invalid-credential': 
             errorMessage = 'Invalid email or password.';
             break;
           case 'auth/email-already-in-use':
@@ -104,10 +102,10 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
             errorMessage = 'Password should be at least 6 characters.';
             break;
           default:
-            errorMessage = error.message; // Default Firebase error message
+            errorMessage = error.message; 
         }
       } else if (error.message) {
-        errorMessage = error.message; // Other types of errors
+        errorMessage = error.message; 
       }
       toast({ title: 'Authentication Error', description: errorMessage, variant: 'destructive' });
     } finally {
@@ -118,7 +116,6 @@ export const AuthForm: FC<AuthFormProps> = React.memo(({ initialMode = 'login' }
   const handleOAuth = useCallback(async (provider: 'google') => {
     setIsLoading(true);
     try {
-      // signInWithGoogle now handles profile creation in Firestore
       await signInWithGoogle();
       toast({ title: 'Login Successful', description: `Welcome!` });
       router.push('/dashboard');
